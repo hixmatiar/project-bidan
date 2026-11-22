@@ -116,7 +116,7 @@ describe('KlinisService', () => {
 
     await service.createPersalinan(
       'kehamilan-1',
-      { jenis_persalinan: 'NORMAL', kondisi_ibu: 'STABIL' },
+      { kunjungan_id: 'kunjungan-1', jenis_persalinan: 'NORMAL', kondisi_ibu: 'STABIL' },
       { stafId: 'staf-1' }
     );
 
@@ -124,6 +124,19 @@ describe('KlinisService', () => {
       expect.objectContaining({ kehamilanId: 'kehamilan-1', penolongId: 'staf-1' })
     );
     expect(repo.completeKehamilan).toHaveBeenCalledWith('kehamilan-1');
+  });
+
+  test('createPersalinan menolak kunjungan atau penolong kosong dengan 422', async () => {
+    const err = await ambilError(
+      service.createPersalinan(
+        'kehamilan-1',
+        { kunjungan_id: undefined, jenis_persalinan: 'NORMAL', kondisi_ibu: 'STABIL' } as never,
+        { stafId: null }
+      )
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.createPersalinan).not.toHaveBeenCalled();
   });
 
   test('createBayi menolak bila pasien bayi gagal dibuat', async () => {
@@ -151,7 +164,7 @@ describe('KlinisService', () => {
     const err = await ambilError(
       service.createImunisasi(
         'pasien-1',
-        { vaksin_id: 'vaksin-1', dosis_ke: 1, tanggal: '2026-11-20' },
+        { vaksin_id: 'vaksin-1', kunjungan_id: 'kunjungan-1', dosis_ke: 1, tanggal: '2026-11-20' },
         'staf-1'
       )
     );
@@ -159,14 +172,44 @@ describe('KlinisService', () => {
     expect(err.statusCode).toBe(500);
   });
 
+  test('createImunisasi menolak akun tanpa data staf dengan 422', async () => {
+    const err = await ambilError(
+      service.createImunisasi(
+        'pasien-1',
+        { vaksin_id: 'vaksin-1', kunjungan_id: 'kunjungan-1', dosis_ke: 1, tanggal: '2026-11-20' },
+        null
+      )
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.createImunisasi).not.toHaveBeenCalled();
+  });
+
   test('createKb mengembalikan 500 bila gagal simpan', async () => {
     repo.createKb.mockResolvedValue(null);
 
     const err = await ambilError(
-      service.createKb('pasien-1', { metode_id: 'metode-1', tanggal: '2026-11-20' })
+      service.createKb('pasien-1', {
+        metode_id: 'metode-1',
+        kunjungan_id: 'kunjungan-1',
+        tanggal: '2026-11-20'
+      })
     );
 
     expect(err.statusCode).toBe(500);
+  });
+
+  test('createKb menolak kunjungan kosong dengan 422', async () => {
+    const err = await ambilError(
+      service.createKb('pasien-1', {
+        metode_id: 'metode-1',
+        kunjungan_id: undefined,
+        tanggal: '2026-11-20'
+      } as never)
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.createKb).not.toHaveBeenCalled();
   });
 
   test('listAnc membatasi limit maksimal 200', () => {

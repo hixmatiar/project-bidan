@@ -10,10 +10,20 @@ jest.mock('../../src/db/pool', () => ({
   SqlConnection: class SqlConnectionStub {}
 }));
 
+jest.mock('../../src/jobs/mailer', () => ({
+  sendMail: jest.fn(),
+  isMailerEnabled: jest.fn(() => true),
+  verifyMailer: jest.fn(),
+  alamatPengirim: jest.fn(() => 'test@example.com')
+}));
+
 import bcrypt from 'bcryptjs';
 import { AuthService } from '../../src/services/auth.service';
 import type AuthRepository from '../../src/repositories/auth.repository';
+import { sendMail } from '../../src/jobs/mailer';
 import { ambilError } from './helpers';
+
+const sendMailMock = sendMail as jest.MockedFunction<typeof sendMail>;
 
 const buatRepo = () => ({
   findAkunByUsername: jest.fn(),
@@ -21,6 +31,7 @@ const buatRepo = () => ({
   recordLoginSuccess: jest.fn().mockResolvedValue(undefined),
   findAkunIdByEmail: jest.fn(),
   createOtp: jest.fn().mockResolvedValue(undefined),
+  recordNotification: jest.fn().mockResolvedValue(undefined),
   enqueueNotification: jest.fn().mockResolvedValue(undefined),
   findActiveOtp: jest.fn(),
   updatePassword: jest.fn().mockResolvedValue(undefined),
@@ -53,6 +64,7 @@ describe('AuthService', () => {
   beforeEach(() => {
     repo = buatRepo();
     service = buatService(repo);
+    sendMailMock.mockReset();
   });
 
   test('login menolak akun yang tidak ada dengan ERR-AUTH-02', async () => {
@@ -136,18 +148,40 @@ describe('AuthService', () => {
 
     expect(hasil.message).toContain('Jika email terdaftar');
     expect(repo.createOtp).not.toHaveBeenCalled();
-    expect(repo.enqueueNotification).not.toHaveBeenCalled();
+    expect(repo.recordNotification).not.toHaveBeenCalled();
+    expect(sendMailMock).not.toHaveBeenCalled();
   });
 
-  test('requestReset membuat OTP dan notifikasi untuk email terdaftar', async () => {
+  test('requestReset mengirim OTP langsung dan mencatat TERKIRIM', async () => {
     repo.findAkunIdByEmail.mockResolvedValue('akun-1');
+    sendMailMock.mockResolvedValue(true);
 
     await service.requestReset('perawat@example.com');
 
     expect(repo.createOtp).toHaveBeenCalledWith('akun-1', expect.any(String));
-    expect(repo.enqueueNotification).toHaveBeenCalledWith(
+    expect(sendMailMock).toHaveBeenCalledWith(
       'perawat@example.com',
+      'Kode OTP Reset Kata Sandi',
       expect.stringContaining('Kode OTP')
+    );
+    expect(repo.recordNotification).toHaveBeenCalledWith(
+      'perawat@example.com',
+      expect.stringContaining('Kode OTP'),
+      'TERKIRIM'
+    );
+    expect(repo.enqueueNotification).not.toHaveBeenCalled();
+  });
+
+  test('requestReset mengantrekan notifikasi bila SMTP gagal', async () => {
+    repo.findAkunIdByEmail.mockResolvedValue('akun-1');
+    sendMailMock.mockResolvedValue(false);
+
+    await service.requestReset('perawat@example.com');
+
+    expect(repo.recordNotification).toHaveBeenCalledWith(
+      'perawat@example.com',
+      expect.stringContaining('Kode OTP'),
+      'ANTRE'
     );
   });
 

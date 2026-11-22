@@ -17,6 +17,7 @@ import { ambilError } from './helpers';
 const buatRepo = () => ({
   findBayi: jest.fn(),
   findAsuhan: jest.fn(),
+  findKunjunganId: jest.fn(),
   createAsuhan: jest.fn(),
   listAsuhan: jest.fn().mockResolvedValue([]),
   createPemeriksaan: jest.fn(),
@@ -84,14 +85,25 @@ describe('BayiService', () => {
     expect(hasil).toEqual({ asuhan_id: 'asuhan-1' });
   });
 
+  test('createAsuhan menolak akun tanpa data staf dengan 422', async () => {
+    const err = await ambilError(service.createAsuhan('bayi-1', asuhanBody, null));
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.findBayi).not.toHaveBeenCalled();
+  });
+
   test('createPemeriksaan menjadwalkan kontrol bila tanggal diisi', async () => {
+    repo.findBayi.mockResolvedValue({ bayi_id: 'bayi-1' });
     repo.createPemeriksaan.mockResolvedValue({ pemeriksaan_id: 'periksa-1' });
 
     await service.createPemeriksaan(
       'bayi-1',
       {
+        kunjungan_id: 'kunjungan-1',
         jenis: 'KN1',
         tgl_pemeriksaan: '2026-11-20',
+        berat_gram: 3000,
+        panjang_cm: 48,
         ikterus: false,
         tanda_bahaya: false,
         tgl_kontrol_berikutnya: '2026-11-27'
@@ -99,33 +111,120 @@ describe('BayiService', () => {
       'staf-1'
     );
 
+    expect(repo.createPemeriksaan).toHaveBeenCalledWith(
+      expect.objectContaining({ kunjunganId: 'kunjungan-1', stafId: 'staf-1' })
+    );
     expect(repo.enqueueKontrol).toHaveBeenCalledWith('bayi-1', '2026-11-27');
   });
 
-  test('createPemeriksaan tidak menjadwalkan kontrol bila kosong', async () => {
+  test('createPemeriksaan menurunkan kunjungan_id dari persalinan bayi', async () => {
+    repo.findBayi.mockResolvedValue({ bayi_id: 'bayi-1' });
+    repo.findKunjunganId.mockResolvedValue('kunjungan-ibu');
     repo.createPemeriksaan.mockResolvedValue({ pemeriksaan_id: 'periksa-1' });
 
     await service.createPemeriksaan(
       'bayi-1',
-      { jenis: 'KN2', tgl_pemeriksaan: '2026-11-20', ikterus: false, tanda_bahaya: false },
-      null
+      {
+        jenis: 'KN2',
+        tgl_pemeriksaan: '2026-11-20',
+        berat_gram: 3100,
+        panjang_cm: 49,
+        ikterus: false,
+        tanda_bahaya: false
+      },
+      'staf-1'
+    );
+
+    expect(repo.createPemeriksaan).toHaveBeenCalledWith(
+      expect.objectContaining({ kunjunganId: 'kunjungan-ibu' })
+    );
+  });
+
+  test('createPemeriksaan menolak bila kunjungan tidak bisa ditentukan', async () => {
+    repo.findBayi.mockResolvedValue({ bayi_id: 'bayi-1' });
+    repo.findKunjunganId.mockResolvedValue(null);
+
+    const err = await ambilError(
+      service.createPemeriksaan(
+        'bayi-1',
+        {
+          jenis: 'KN1',
+          tgl_pemeriksaan: '2026-11-20',
+          berat_gram: 3000,
+          panjang_cm: 48,
+          ikterus: false,
+          tanda_bahaya: false
+        },
+        'staf-1'
+      )
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.createPemeriksaan).not.toHaveBeenCalled();
+  });
+
+  test('createPemeriksaan tidak menjadwalkan kontrol bila kosong', async () => {
+    repo.findBayi.mockResolvedValue({ bayi_id: 'bayi-1' });
+    repo.createPemeriksaan.mockResolvedValue({ pemeriksaan_id: 'periksa-1' });
+
+    await service.createPemeriksaan(
+      'bayi-1',
+      {
+        kunjungan_id: 'kunjungan-1',
+        jenis: 'KN2',
+        tgl_pemeriksaan: '2026-11-20',
+        berat_gram: 3100,
+        panjang_cm: 49,
+        ikterus: false,
+        tanda_bahaya: false
+      },
+      'staf-1'
     );
 
     expect(repo.enqueueKontrol).not.toHaveBeenCalled();
   });
 
   test('createPemeriksaan mengembalikan 500 bila gagal simpan', async () => {
+    repo.findBayi.mockResolvedValue({ bayi_id: 'bayi-1' });
     repo.createPemeriksaan.mockResolvedValue(null);
 
     const err = await ambilError(
       service.createPemeriksaan(
         'bayi-1',
-        { jenis: 'KN1', tgl_pemeriksaan: '2026-11-20', ikterus: false, tanda_bahaya: false },
-        null
+        {
+          kunjungan_id: 'kunjungan-1',
+          jenis: 'KN1',
+          tgl_pemeriksaan: '2026-11-20',
+          berat_gram: 3000,
+          panjang_cm: 48,
+          ikterus: false,
+          tanda_bahaya: false
+        },
+        'staf-1'
       )
     );
 
     expect(err.statusCode).toBe(500);
+  });
+
+  test('createPemeriksaan menolak akun tanpa data staf dengan 422', async () => {
+    const err = await ambilError(
+      service.createPemeriksaan(
+        'bayi-1',
+        {
+          kunjungan_id: 'kunjungan-1',
+          jenis: 'KN1',
+          tgl_pemeriksaan: '2026-11-20',
+          berat_gram: 3000,
+          panjang_cm: 48,
+          ikterus: false,
+          tanda_bahaya: false
+        },
+        null
+      )
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
   });
 
   test('grafik meneruskan ke repository', async () => {

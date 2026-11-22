@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { apiClient, session } from '../api/client';
+import { authApi } from '../api/endpoints';
 import { pesanErrorApi } from '../api/errors';
 import type { ApiSuccess, LoginResponse } from '../api/types';
 
@@ -15,6 +16,63 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToHo
   const [secret, setSecret] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [resetStep, setResetStep] = useState<'none' | 'request' | 'verify'>('none');
+  const [resetEmail, setResetEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
+  const bukaLupaSandi = () => {
+    setResetStep('request');
+    setError(null);
+    setNotice(null);
+    setResetEmail(identifier.includes('@') ? identifier : '');
+  };
+
+  const kembaliKeLogin = () => {
+    setResetStep('none');
+    setError(null);
+    setNotice(null);
+    setOtp('');
+    setNewPassword('');
+  };
+
+  const handleResetRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await authApi.requestReset(resetEmail);
+      setNotice(response.data.data.message);
+      setResetStep('verify');
+    } catch (err: unknown) {
+      setError(pesanErrorApi(err, 'Gagal mengirim kode OTP. Periksa kembali email Anda.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await authApi.verifyReset(resetEmail, otp, newPassword);
+      setNotice(response.data.data.message);
+      setResetStep('none');
+      setOtp('');
+      setNewPassword('');
+      setSecret('');
+    } catch (err: unknown) {
+      setError(pesanErrorApi(err, 'Gagal mengubah kata sandi. Periksa kembali kode OTP Anda.'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleTabChange = (roleKey: 'superadmin' | 'admin' | 'bidan' | 'pasien') => {
     setSelectedRole(roleKey);
@@ -180,7 +238,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToHo
           </div>
         )}
 
-        {/* Clean Login Form connected to backend POST /api/v1/auth/login */}
+        {notice && (
+          <div style={{ marginBottom: '1.25rem', padding: '0.85rem 1rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', color: '#15803d', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M20 6 9 17l-5-5"/></svg>
+            <span>{notice}</span>
+          </div>
+        )}
+
+        {resetStep === 'none' && (
         <form onSubmit={handleFormSubmit}>
           <div style={{ marginBottom: '1.15rem' }}>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
@@ -208,6 +273,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToHo
               placeholder="Masukkan kata sandi"
               style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '0.9375rem', outline: 'none' }}
             />
+            <div style={{ marginTop: '0.5rem', textAlign: 'right' }}>
+              <button
+                type="button"
+                onClick={bukaLupaSandi}
+                style={{ color: 'var(--color-primary)', fontWeight: 700, fontSize: '0.8125rem' }}
+              >
+                Lupa kata sandi?
+              </button>
+            </div>
           </div>
 
           <button
@@ -219,6 +293,96 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToHo
             {loading ? 'Memverifikasi ke Database...' : `Masuk sebagai ${selectedRole === 'pasien' ? 'Pasien' : selectedRole === 'bidan' ? 'Bidan Ria' : selectedRole === 'superadmin' ? 'Superadmin (Log Audit)' : 'Admin Klinik (Operasional)'}`}
           </button>
         </form>
+        )}
+
+        {resetStep === 'request' && (
+          <form onSubmit={handleResetRequest}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-slate-600)', marginBottom: '1.15rem', lineHeight: 1.6 }}>
+              Masukkan email terdaftar. Kami akan mengirim kode OTP 6 digit untuk mengatur ulang kata sandi.
+            </p>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
+                Email
+              </label>
+              <input
+                type="email"
+                required
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                placeholder="nama@email.com"
+                style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '0.9375rem', outline: 'none' }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary btn-shimmer"
+              style={{ width: '100%', padding: '0.85rem', fontSize: '0.9375rem', fontWeight: 700 }}
+            >
+              {loading ? 'Mengirim kode OTP...' : 'Kirim Kode OTP'}
+            </button>
+            <button
+              type="button"
+              onClick={kembaliKeLogin}
+              style={{ width: '100%', marginTop: '0.85rem', color: 'var(--color-primary)', fontWeight: 700, fontSize: '0.85rem' }}
+            >
+              Kembali ke halaman masuk
+            </button>
+          </form>
+        )}
+
+        {resetStep === 'verify' && (
+          <form onSubmit={handleResetVerify}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--color-slate-600)', marginBottom: '1.15rem', lineHeight: 1.6 }}>
+              Kode OTP dikirim ke <strong>{resetEmail}</strong>. Masukkan kode tersebut beserta kata sandi baru Anda.
+            </p>
+            <div style={{ marginBottom: '1.15rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
+                Kode OTP (6 digit)
+              </label>
+              <input
+                type="text"
+                required
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                placeholder="123456"
+                style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '1.1rem', letterSpacing: '0.35rem', textAlign: 'center', outline: 'none' }}
+              />
+            </div>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
+                Kata Sandi Baru (minimal 8 karakter)
+              </label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Masukkan kata sandi baru"
+                style={{ width: '100%', padding: '0.75rem 0.85rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '0.9375rem', outline: 'none' }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary btn-shimmer"
+              style={{ width: '100%', padding: '0.85rem', fontSize: '0.9375rem', fontWeight: 700 }}
+            >
+              {loading ? 'Menyimpan kata sandi...' : 'Simpan Kata Sandi Baru'}
+            </button>
+            <button
+              type="button"
+              onClick={kembaliKeLogin}
+              style={{ width: '100%', marginTop: '0.85rem', color: 'var(--color-primary)', fontWeight: 700, fontSize: '0.85rem' }}
+            >
+              Kembali ke halaman masuk
+            </button>
+          </form>
+        )}
 
         {/* Back to Home Link */}
         <div style={{ marginTop: '1.75rem', textAlign: 'center', paddingTop: '1.15rem', borderTop: '1px solid var(--border-light)' }}>

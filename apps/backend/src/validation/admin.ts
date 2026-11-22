@@ -9,7 +9,7 @@ export const akunSchema = z.object({
 });
 
 export const pemeliharaanSchema = z.object({
-  teknisi_staf_id: z.string().uuid().optional(),
+  teknisi_staf_id: z.string().uuid(),
   jenis: z.string().min(1).max(50),
   tanggal: dateSchema,
   biaya: z.number().min(0).default(0),

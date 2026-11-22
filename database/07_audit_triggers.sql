@@ -7,6 +7,12 @@
 USE MiniWorldRS;
 GO
 
+-- Trigger harus dibuat dengan SET option ini agar INSERT/UPDATE pada tabel
+-- ber-filtered index tidak gagal saat trigger dieksekusi.
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
+GO
+
 CREATE OR ALTER TRIGGER dbo.[trg_audit_pasien] ON dbo.[Pasien]
 AFTER INSERT, UPDATE, DELETE
 AS

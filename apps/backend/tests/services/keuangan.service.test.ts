@@ -16,6 +16,7 @@ import { ambilError, ambilErrorSync } from './helpers';
 
 const buatRepo = () => ({
   kunjunganExists: jest.fn().mockResolvedValue(true),
+  findPenjaminMandiri: jest.fn(),
   findTagihanIdByKunjungan: jest.fn(),
   createTagihan: jest.fn(),
   listRincian: jest.fn().mockResolvedValue([]),
@@ -89,9 +90,18 @@ describe('KeuanganService', () => {
     repo.findTagihan.mockResolvedValue(null);
 
     const err = await ambilError(
-      service.bayar('tagihan-1', { jumlah: 10, metode: 'TUNAI', jenis: 'PENUH' }, null)
+      service.bayar('tagihan-1', { jumlah: 10, metode: 'TUNAI', jenis: 'PENUH' }, 'staf-1')
     );
     expect(err).toMatchObject({ statusCode: 404, errorId: 'ERR-FIN-02' });
+  });
+
+  test('bayar menolak akun tanpa data staf dengan 422', async () => {
+    const err = await ambilError(
+      service.bayar('tagihan-1', { jumlah: 10, metode: 'TUNAI', jenis: 'PENUH' }, null)
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.findTagihan).not.toHaveBeenCalled();
   });
 
   test('bayar menolak nominal melebihi sisa dengan ERR-FIN-01', async () => {
@@ -130,12 +140,16 @@ describe('KeuanganService', () => {
     expect(hasil).toEqual({ tagihan_id: 'tagihan-1', status: 'LUNAS' });
   });
 
-  test('bayar sebagian memakai status BAYAR_SEBAGIAN', async () => {
+  test('bayar sebagian memakai status BAYAR_SEBAGIAN dan penjamin Mandiri default', async () => {
     repo.findTagihan.mockResolvedValue({ total_tagihan: 1000, total_dibayar: 0 });
+    repo.findPenjaminMandiri.mockResolvedValue('penjamin-mandiri');
     repo.updatePembayaranTagihan.mockResolvedValue({ tagihan_id: 'tagihan-1' });
 
-    await service.bayar('tagihan-1', { jumlah: 250, metode: 'TUNAI', jenis: 'SEBAGIAN' }, null);
+    await service.bayar('tagihan-1', { jumlah: 250, metode: 'TUNAI', jenis: 'SEBAGIAN' }, 'staf-1');
 
+    expect(repo.createPembayaran).toHaveBeenCalledWith(
+      expect.objectContaining({ penjaminId: 'penjamin-mandiri', kasirStafId: 'staf-1' })
+    );
     expect(repo.updatePembayaranTagihan).toHaveBeenCalledWith('tagihan-1', 250, 'BAYAR_SEBAGIAN');
   });
 
@@ -162,7 +176,11 @@ describe('KeuanganService', () => {
 
   test('setHarga menolak harga nol dengan ERR-PRC-01', async () => {
     const err = await ambilError(
-      service.setHarga({ ref_tipe: 'LAYANAN', ref_id: 'ref-1' }, { harga: 0 }, null)
+      service.setHarga(
+        { ref_tipe: 'LAYANAN', ref_id: 'ref-1' },
+        { harga: 0, alasan: 'penyesuaian' },
+        'staf-1'
+      )
     );
     expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-PRC-01' });
   });
@@ -171,11 +189,23 @@ describe('KeuanganService', () => {
     const err = await ambilError(
       service.setHarga(
         { ref_tipe: 'OBAT', ref_id: 'ref-1' },
-        { harga: 1000, berlaku_dari: '2000-01-01' },
-        null
+        { harga: 1000, berlaku_dari: '2000-01-01', alasan: 'penyesuaian' },
+        'staf-1'
       )
     );
     expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-PRC-01' });
+  });
+
+  test('setHarga menolak alasan kosong dengan ERR-VAL-01', async () => {
+    const err = await ambilError(
+      service.setHarga(
+        { ref_tipe: 'OBAT', ref_id: 'ref-1' },
+        { harga: 1000, alasan: '  ' },
+        'staf-1'
+      )
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
   });
 
   test('setHarga layanan menutup harga lama lalu menyimpan harga baru', async () => {
@@ -203,7 +233,11 @@ describe('KeuanganService', () => {
   test('setHarga obat memakai jalur obat', async () => {
     repo.insertHargaObat.mockResolvedValue({ harga_id: 'harga-obat' });
 
-    await service.setHarga({ ref_tipe: 'OBAT', ref_id: 'obat-1' }, { harga: 12000 }, 'staf-1');
+    await service.setHarga(
+      { ref_tipe: 'OBAT', ref_id: 'obat-1' },
+      { harga: 12000, alasan: 'penyesuaian' },
+      'staf-1'
+    );
 
     expect(repo.closeHargaObat).toHaveBeenCalledWith('obat-1');
     expect(repo.insertHargaLayanan).not.toHaveBeenCalled();

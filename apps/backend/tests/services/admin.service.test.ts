@@ -109,6 +109,7 @@ describe('AdminService', () => {
     repo.createPemeliharaan.mockResolvedValue({ pemeliharaan_id: 'pem-1' });
 
     await service.createPemeliharaan('aset-1', {
+      teknisi_staf_id: 'staf-teknisi',
       jenis: 'KALIBRASI',
       tanggal: '2026-11-20',
       biaya: 100000,
@@ -122,9 +123,28 @@ describe('AdminService', () => {
     repo.createPemeliharaan.mockResolvedValue(null);
 
     const err = await ambilError(
-      service.createPemeliharaan('aset-1', { jenis: 'RUTIN', tanggal: '2026-11-20', biaya: 0 })
+      service.createPemeliharaan('aset-1', {
+        teknisi_staf_id: 'staf-teknisi',
+        jenis: 'RUTIN',
+        tanggal: '2026-11-20',
+        biaya: 0
+      })
     );
 
     expect(err.statusCode).toBe(500);
+  });
+
+  test('createPemeliharaan menolak teknisi kosong dengan 422', async () => {
+    const err = await ambilError(
+      service.createPemeliharaan('aset-1', {
+        teknisi_staf_id: '',
+        jenis: 'RUTIN',
+        tanggal: '2026-11-20',
+        biaya: 0
+      })
+    );
+
+    expect(err).toMatchObject({ statusCode: 422, errorId: 'ERR-VAL-01' });
+    expect(repo.createPemeliharaan).not.toHaveBeenCalled();
   });
 });

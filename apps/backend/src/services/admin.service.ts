@@ -42,6 +42,11 @@ export class AdminService {
   }
 
   async createPemeliharaan(asetId: string, body: PemeliharaanBody): Promise<Record<string, unknown>> {
+    if (!body.teknisi_staf_id) {
+      throw ApiError.validation('Validasi gagal', [
+        { path: ['teknisi_staf_id'], message: 'teknisi_staf_id wajib diisi' }
+      ]);
+    }
     const row = await this.repository.createPemeliharaan({
       asetId,
       teknisiStafId: body.teknisi_staf_id,

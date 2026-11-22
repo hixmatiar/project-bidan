@@ -26,9 +26,8 @@ export function App() {
     setIsAuthenticated(true);
   };
 
-  const handleLogout = () => {
-    void session.logout();
-    session.bersihkan();
+  const handleLogout = async () => {
+    await session.logout();
     setIsAuthenticated(false);
   };
 

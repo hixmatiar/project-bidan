@@ -16,6 +16,17 @@ import type {
 export class KlinisService {
   constructor(private readonly repository: KlinisRepository = new KlinisRepository()) {}
 
+  private pastikanNilai(
+    nilai: string | null | undefined,
+    path: string,
+    pesan: string
+  ): string {
+    if (!nilai) {
+      throw ApiError.validation('Validasi gagal', [{ path: [path], message: pesan }]);
+    }
+    return nilai;
+  }
+
   async createKunjungan(
     pasienId: string,
     body: KunjunganBody,
@@ -111,10 +122,21 @@ export class KlinisService {
     body: PersalinanBody,
     auth: { stafId: string | null } | undefined
   ): Promise<Record<string, unknown>> {
+    const kunjunganId = this.pastikanNilai(
+      body.kunjungan_id,
+      'kunjungan_id',
+      'kunjungan_id wajib diisi saat mencatat persalinan'
+    );
+    const penolongId = this.pastikanNilai(
+      body.penolong_staf_id ?? auth?.stafId ?? null,
+      'penolong_staf_id',
+      'penolong_staf_id wajib diisi atau akun harus terhubung ke data staf'
+    );
+
     const row = await this.repository.createPersalinan({
       kehamilanId: id,
-      kunjunganId: body.kunjungan_id,
-      penolongId: body.penolong_staf_id ?? auth?.stafId ?? null,
+      kunjunganId,
+      penolongId,
       waktu: body.waktu_persalinan,
       jenis: body.jenis_persalinan,
       komplikasi: body.komplikasi,
@@ -167,12 +189,23 @@ export class KlinisService {
     body: ImunisasiBody,
     stafId: string | null
   ): Promise<Record<string, unknown>> {
+    const kunjunganId = this.pastikanNilai(
+      body.kunjungan_id,
+      'kunjungan_id',
+      'kunjungan_id wajib diisi saat mencatat imunisasi'
+    );
+    const staf = this.pastikanNilai(
+      stafId,
+      'staf_id',
+      'Akun ini tidak terhubung ke data staf'
+    );
+
     const row = await this.repository.createImunisasi({
       pasienId: id,
       vaksinId: body.vaksin_id,
-      kunjunganId: body.kunjungan_id,
+      kunjunganId,
       batchId: body.batch_id,
-      stafId,
+      stafId: staf,
       dosisKe: body.dosis_ke,
       tanggal: body.tanggal
     });
@@ -187,10 +220,16 @@ export class KlinisService {
   }
 
   async createKb(id: string, body: KbBody): Promise<Record<string, unknown>> {
+    const kunjunganId = this.pastikanNilai(
+      body.kunjungan_id,
+      'kunjungan_id',
+      'kunjungan_id wajib diisi saat mencatat pelayanan KB'
+    );
+
     const row = await this.repository.createKb({
       pasienId: id,
       metodeId: body.metode_id,
-      kunjunganId: body.kunjungan_id,
+      kunjunganId,
       tanggal: body.tanggal,
       kontrolBerikutnya: body.kontrol_berikutnya,
       efekSamping: body.efek_samping

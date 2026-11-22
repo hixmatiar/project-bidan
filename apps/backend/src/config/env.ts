@@ -1,9 +1,11 @@
 import path from 'path';
 import dotenv from 'dotenv';
 
-// Muat .env dari cwd (apps/backend) lalu fallback ke root monorepo.
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
+// Root monorepo .env adalah sumber utama; apps/backend/.env hanya fallback.
+// dotenv tidak menimpa variabel yang sudah ada, jadi urutan ini membuat root menang.
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env'), quiet: true });
+dotenv.config({ path: path.resolve(__dirname, '../../.env'), quiet: true });
+dotenv.config({ path: path.resolve(process.cwd(), '.env'), quiet: true });
 
 import { z } from 'zod';
 
@@ -37,7 +39,9 @@ const envSchema = z.object({
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.string().optional().transform((val) => (val ? parseInt(val, 10) : undefined)),
   SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional()
+  SMTP_PASS: z.string().optional(),
+  // Alamat pengirim yang sudah diverifikasi di Brevo (bukan user relay SMTP).
+  SENDER_EMAIL: z.string().email().optional()
 });
 
 const result = envSchema.safeParse(process.env);

@@ -20,7 +20,7 @@ export const hargaSchema = z.object({
   kelas_id: z.string().uuid().optional(),
   penjamin_id: z.string().uuid().optional(),
   berlaku_dari: dateSchema.optional(),
-  alasan: z.string().max(255).optional()
+  alasan: z.string().trim().min(3, 'Alasan minimal 3 karakter').max(255)
 });
 
 export const refParams = z.object({

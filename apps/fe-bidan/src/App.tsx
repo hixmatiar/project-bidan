@@ -39,8 +39,8 @@ export function App() {
     window.history.pushState({}, '', '/app/dashboard');
   };
 
-  const handleLogout = () => {
-    session.bersihkan();
+  const handleLogout = async () => {
+    await session.logout();
     setCurrentView('home');
     window.history.pushState({}, '', '/');
   };

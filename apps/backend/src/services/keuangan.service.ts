@@ -11,6 +11,15 @@ import type {
 export class KeuanganService {
   constructor(private readonly repository: KeuanganRepository = new KeuanganRepository()) {}
 
+  private pastikanStaf(stafId: string | null): string {
+    if (!stafId) {
+      throw ApiError.validation('Validasi gagal', [
+        { path: ['staf_id'], message: 'Akun ini tidak terhubung ke data staf' }
+      ]);
+    }
+    return stafId;
+  }
+
   async detailTagihan(kunjunganId: string): Promise<Record<string, unknown>> {
     if (!(await this.repository.kunjunganExists(kunjunganId))) {
       throw ApiError.notFound('Kunjungan tidak ditemukan');
@@ -31,6 +40,7 @@ export class KeuanganService {
   }
 
   async bayar(id: string, body: BayarBody, stafId: string | null): Promise<Record<string, unknown>> {
+    const kasir = this.pastikanStaf(stafId);
     const tagihan = await this.repository.findTagihan(id);
     if (!tagihan) {
       throw ApiError.fromCode('ERR-FIN-02');
@@ -43,10 +53,17 @@ export class KeuanganService {
       throw ApiError.fromCode('ERR-FIN-01', { sisa_tagihan: sisa });
     }
 
+    const penjaminId = body.penjamin_id ?? (await this.repository.findPenjaminMandiri());
+    if (!penjaminId) {
+      throw ApiError.validation('Validasi gagal', [
+        { path: ['penjamin_id'], message: 'penjamin_id wajib diisi karena penjamin default tidak tersedia' }
+      ]);
+    }
+
     await this.repository.createPembayaran({
       tagihanId: id,
-      penjaminId: body.penjamin_id,
-      kasirStafId: stafId,
+      penjaminId,
+      kasirStafId: kasir,
       jumlah: body.jumlah,
       metode: body.metode,
       jenis: body.jenis
@@ -89,6 +106,7 @@ export class KeuanganService {
     body: HargaBody,
     stafId: string | null
   ): Promise<Record<string, unknown>> {
+    const staf = this.pastikanStaf(stafId);
     if (body.harga <= 0) {
       throw ApiError.fromCode('ERR-PRC-01');
     }
@@ -99,16 +117,23 @@ export class KeuanganService {
       }
     }
 
+    const alasan = body.alasan.trim();
+    if (alasan.length < 3) {
+      throw ApiError.validation('Validasi gagal', [
+        { path: ['alasan'], message: 'Alasan minimal 3 karakter' }
+      ]);
+    }
+
     if (params.ref_tipe === 'LAYANAN') {
       await this.repository.closeHargaLayanan(params.ref_id);
       const created = await this.repository.insertHargaLayanan({
         layananId: params.ref_id,
         kelasId: body.kelas_id,
         penjaminId: body.penjamin_id,
-        stafId,
+        stafId: staf,
         harga: body.harga,
         berlakuDari: body.berlaku_dari,
-        alasan: body.alasan
+        alasan
       });
       if (!created) {
         throw ApiError.internal('Gagal menyimpan harga layanan');
@@ -119,10 +144,10 @@ export class KeuanganService {
     await this.repository.closeHargaObat(params.ref_id);
     const created = await this.repository.insertHargaObat({
       obatId: params.ref_id,
-      stafId,
+      stafId: staf,
       harga: body.harga,
       berlakuDari: body.berlaku_dari,
-      alasan: body.alasan
+      alasan
     });
     if (!created) {
       throw ApiError.internal('Gagal menyimpan harga obat');

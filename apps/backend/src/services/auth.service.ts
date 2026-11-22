@@ -4,6 +4,7 @@ import ApiError from '../errors/ApiError';
 import { signToken } from '../middleware/auth';
 import type { AuthContext, Peran, SubPeran } from '../types';
 import AuthRepository from '../repositories/auth.repository';
+import { sendMail } from '../jobs/mailer';
 
 export interface LoginResult {
   token: string;
@@ -70,10 +71,11 @@ export class AuthService {
       const kode = crypto.randomInt(100000, 1000000).toString();
       const kodeHash = await bcrypt.hash(kode, 10);
       await this.repository.createOtp(akunId, kodeHash);
-      await this.repository.enqueueNotification(
-        email,
-        `Kode OTP reset kata sandi Anda: ${kode}`
-      );
+
+      const pesan = `Kode OTP reset kata sandi Anda: ${kode}. Kode berlaku 15 menit.`;
+      const terkirim = await sendMail(email, 'Kode OTP Reset Kata Sandi', pesan);
+      // Kirim langsung agar OTP tiba < 1 menit; antrekan hanya bila SMTP gagal.
+      await this.repository.recordNotification(email, pesan, terkirim ? 'TERKIRIM' : 'ANTRE');
     }
 
     return { message: 'Jika email terdaftar, kode OTP telah dikirim' };

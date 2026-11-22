@@ -69,6 +69,11 @@ export class PasienService {
     body: AlergiBody,
     dicatatOleh: string | null
   ): Promise<Record<string, unknown>> {
+    if (!dicatatOleh) {
+      throw ApiError.validation('Validasi gagal', [
+        { path: ['dicatat_oleh'], message: 'Akun ini tidak terhubung ke data staf' }
+      ]);
+    }
     const row = await this.repository.createAlergi(id, body, dicatatOleh);
     if (!row) {
       throw ApiError.internal('Gagal menyimpan alergi');

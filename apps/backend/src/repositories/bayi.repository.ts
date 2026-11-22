@@ -46,6 +46,18 @@ export class BayiRepository {
     return result.recordset[0]?.asuhan_bbl_id ?? null;
   }
 
+  /** Ambil kunjungan dari persalinan ibu saat pemeriksaan bayi tidak mengirim kunjungan_id. */
+  async findKunjunganId(bayiId: string): Promise<string | null> {
+    const result = await db.query<{ kunjungan_id: string | null }>(
+      `SELECT TOP 1 pr.kunjungan_id
+         FROM [Bayi_Lahir] b
+         JOIN [Persalinan] pr ON pr.persalinan_id = b.persalinan_id
+        WHERE b.bayi_id = @id`,
+      { id: bayiId }
+    );
+    return result.recordset[0]?.kunjungan_id ?? null;
+  }
+
   async createAsuhan(input: AsuhanInput): Promise<Record<string, unknown> | undefined> {
     const result = await db.query<Record<string, unknown>>(
       `INSERT INTO [Asuhan_BBL] (bayi_id, staf_id, imd, vit_k1, salep_mata, hb0, keadaan_umum, catatan)

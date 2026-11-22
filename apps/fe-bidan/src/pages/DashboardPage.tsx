@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiClient, session } from '../api/client';
+import { pesanErrorApi } from '../api/errors';
 import { KLINIK_INFO } from '../constants/klinik';
 import { AuditLogItem, HargaObatLogItem, NotifikasiEmailPasien, RekapKeuanganOperasional } from '../api/types';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -21,6 +22,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
   const [auditFilter, setAuditFilter] = useState<string>('SEMUA');
   const [auditSearch, setAuditSearch] = useState<string>('');
   const [selectedAuditLog, setSelectedAuditLog] = useState<AuditLogItem | null>(null);
+  const [reloadHarga, setReloadHarga] = useState(0);
 
   // Live Database Fetch: Panggil langsung endpoint backend yang terhubung ke SQL Server
   useEffect(() => {
@@ -29,15 +31,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
       .then((res) => {
         const rawList = res.data?.data?.obat;
         if (Array.isArray(rawList)) {
-          const mapped: HargaObatLogItem[] = rawList.map((item: any, idx: number) => {
+          const mapped: HargaObatLogItem[] = rawList.map((item: any) => {
             const jual = Number(item.harga_jual || item.harga || 0);
-            const beli = Number(item.hpp_beli || item.harga_beli || Math.round(jual * 0.7));
+            const beli = Number(item.hpp_beli || item.harga_beli || 0);
             const marginRp = jual - beli;
             const marginPersen = beli > 0 ? Math.round((marginRp / beli) * 100) : 0;
             return {
-              harga_obat_id: String(item.harga_obat_id || `HBT-${idx + 1}`),
-              obat_id: String(item.obat_id || `OBT-${idx + 1}`),
-              kode_obat: String(item.kode || item.kode_obat || `OBT-0${idx + 1}`),
+              harga_obat_id: String(item.harga_obat_id ?? ''),
+              obat_id: String(item.obat_id ?? ''),
+              kode_obat: String(item.kode ?? item.kode_obat ?? ''),
               nama_obat: String(item.nama_obat || item.nama_generik || item.nama || 'Obat Kebidanan'),
               kategori: String(item.kategori || 'Farmasi'),
               hpp_beli: beli,
@@ -127,6 +129,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
             status: Number(o.stok_total || 0) <= Number(o.stok_minimum || 10) ? 'MENIPIS' : 'AMAN'
           }));
           setStokAlkes(mapped);
+          setObatOptions(
+            res.data.data
+              .filter((o: any) => typeof o.obat_id === 'string' && o.obat_id.length > 0)
+              .map((o: any) => ({
+                obat_id: String(o.obat_id),
+                nama_obat: o.nama_dagang
+                  ? `${o.nama_dagang} (${o.nama_generik})`
+                  : String(o.nama_generik || 'Obat Kebidanan'),
+                kategori: String(o.kategori || 'Farmasi'),
+                kode: String(o.kode || '')
+              }))
+          );
         }
       })
       .catch(() => {});
@@ -148,18 +162,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
         }
       })
       .catch(() => {});
-  }, []);
+  }, [reloadHarga]);
 
   // Admin Operational Sub-Tab State
   const [adminTab, setAdminTab] = useState<'antrean' | 'pendaftaran' | 'stok' | 'kasir' | 'keuangan' | 'riwayat_harga' | 'email'>('antrean');
   const [hargaLogs, setHargaLogs] = useState<HargaObatLogItem[]>([]);
   const [showAddHargaModal, setShowAddHargaModal] = useState<boolean>(false);
+  const [hargaSaving, setHargaSaving] = useState<boolean>(false);
+  const [hargaError, setHargaError] = useState<string | null>(null);
+  const [obatOptions, setObatOptions] = useState<
+    Array<{ obat_id: string; nama_obat: string; kategori: string; kode: string }>
+  >([]);
   const [newHargaItem, setNewHargaItem] = useState({
-    obat_id: 'OBT-OKS-01',
-    nama_obat: 'Oksitosin 10 IU / mL (Injeksi)',
-    kategori: 'Uterotonika',
-    hpp_beli: 24000,
-    harga_jual: 38000,
+    obat_id: '',
+    nama_obat: '',
+    kategori: '',
+    harga_jual: 0,
     alasan: ''
   });
   const [emailLogs, setEmailLogs] = useState<NotifikasiEmailPasien[]>([]);
@@ -1386,79 +1404,85 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
               Catat Penyesuaian Harga Baru (dbo.[Harga_Obat])
             </h3>
             <p style={{ fontSize: '0.8125rem', color: 'var(--color-slate-500)', marginBottom: '1.25rem' }}>
-              Pencatatan riwayat HPP beli baru, harga jual, dan justifikasi kenaikan bahan baku obat dari distributor/PBF.
+              Pencatatan harga jual baru dan justifikasi penyesuaian tarif obat. Data disimpan ke dbo.[Harga_Obat].
             </p>
 
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault();
-              const marginRp = newHargaItem.harga_jual - newHargaItem.hpp_beli;
-              const marginPct = Number(((marginRp / newHargaItem.harga_jual) * 100).toFixed(2));
-              const itemToAdd: HargaObatLogItem = {
-                harga_obat_id: `HRO-2026-${Date.now().toString().slice(-4)}`,
-                obat_id: newHargaItem.obat_id,
-                kode_obat: newHargaItem.obat_id,
-                nama_obat: newHargaItem.nama_obat,
-                kategori: newHargaItem.kategori,
-                hpp_beli: newHargaItem.hpp_beli,
-                harga_jual: newHargaItem.harga_jual,
-                margin_rp: marginRp,
-                margin_persen: marginPct,
-                berlaku_dari: new Date().toISOString().split('T')[0] || '',
-                berlaku_sampai: null,
-                diubah_oleh: 'Ahmad Fauzi (Logistik)',
-                alasan: newHargaItem.alasan || 'Penyesuaian berkala harga bahan farmasi distributor rekanan.'
-              };
-              
-              // Direct POST ke endpoint backend /api/v1/harga/:ref untuk persist ke dbo.[Harga_Obat]
-              apiClient.post(`/harga/OBAT/${newHargaItem.obat_id}`, {
-                harga: newHargaItem.harga_jual,
-                alasan: newHargaItem.alasan || 'Penyesuaian berkala harga bahan farmasi distributor rekanan.',
-                berlaku_dari: new Date().toISOString().split('T')[0] || ''
-              }).catch(err => console.info('Backend write queue:', err.message));
+              setHargaError(null);
 
-              setHargaLogs([itemToAdd, ...hargaLogs]);
-              setShowAddHargaModal(false);
-              alert('Penyesuaian harga obat berhasil dicatat ke tabel dbo.[Harga_Obat] database!');
+              if (!newHargaItem.obat_id) {
+                setHargaError('Pilih obat terlebih dahulu.');
+                return;
+              }
+              if (!Number.isFinite(newHargaItem.harga_jual) || newHargaItem.harga_jual <= 0) {
+                setHargaError('Harga jual harus lebih dari 0.');
+                return;
+              }
+              if (newHargaItem.alasan.trim().length < 3) {
+                setHargaError('Alasan minimal 3 karakter.');
+                return;
+              }
+
+              setHargaSaving(true);
+              try {
+                // Persist ke dbo.[Harga_Obat] memakai obat_id UUID asli dari /inventaris/list.
+                await apiClient.put(`/harga/OBAT/${newHargaItem.obat_id}`, {
+                  harga: newHargaItem.harga_jual,
+                  alasan: newHargaItem.alasan.trim(),
+                  berlaku_dari: new Date().toISOString().split('T')[0] || undefined
+                });
+                setShowAddHargaModal(false);
+                setNewHargaItem({ obat_id: '', nama_obat: '', kategori: '', harga_jual: 0, alasan: '' });
+                setReloadHarga((v) => v + 1);
+                alert('Penyesuaian harga obat berhasil dicatat ke tabel dbo.[Harga_Obat].');
+              } catch (err: unknown) {
+                setHargaError(pesanErrorApi(err, 'Gagal menyimpan harga obat.'));
+              } finally {
+                setHargaSaving(false);
+              }
             }}>
               <div style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>Pilih Obat / Alkes</label>
                 <select
+                  required
                   value={newHargaItem.obat_id}
                   onChange={(e) => {
                     const id = e.target.value;
-                    if (id === 'OBT-OKS-01') setNewHargaItem({ ...newHargaItem, obat_id: id, nama_obat: 'Oksitosin 10 IU / mL (Injeksi)', kategori: 'Uterotonika', hpp_beli: 24000, harga_jual: 38000 });
-                    else if (id === 'ALKES-IUD-01') setNewHargaItem({ ...newHargaItem, obat_id: id, nama_obat: 'IUD Copper T 380A Steril', kategori: 'Alat Kontrasepsi', hpp_beli: 175000, harga_jual: 270000 });
-                    else setNewHargaItem({ ...newHargaItem, obat_id: id, nama_obat: 'Vitamin K1 1 mg (Injeksi BBL)', kategori: 'Profilaksis Bayi', hpp_beli: 13000, harga_jual: 22000 });
+                    const found = obatOptions.find((o) => o.obat_id === id);
+                    setNewHargaItem({
+                      ...newHargaItem,
+                      obat_id: id,
+                      nama_obat: found?.nama_obat ?? '',
+                      kategori: found?.kategori ?? ''
+                    });
                   }}
                   style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid var(--border-medium)' }}
                 >
-                  <option value="OBT-OKS-01">Oksitosin 10 IU / mL (Injeksi Uterotonika)</option>
-                  <option value="ALKES-IUD-01">IUD Copper T 380A Steril (Alat Kontrasepsi)</option>
-                  <option value="OBT-VK1-01">Vitamin K1 1 mg (Injeksi BBL)</option>
+                  <option value="">-- Pilih obat dari inventaris --</option>
+                  {obatOptions.map((o) => (
+                    <option key={o.obat_id} value={o.obat_id}>
+                      {o.nama_obat}{o.kode ? ` — ${o.kode}` : ''}
+                    </option>
+                  ))}
                 </select>
+                {obatOptions.length === 0 && (
+                  <p style={{ fontSize: '0.75rem', color: '#b45309', marginTop: '0.4rem' }}>
+                    Belum ada data obat. Tambahkan obat melalui menu inventaris terlebih dahulu.
+                  </p>
+                )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>HPP Beli Supplier (Rp)</label>
-                  <input
-                    type="number"
-                    required
-                    value={newHargaItem.hpp_beli}
-                    onChange={(e) => setNewHargaItem({ ...newHargaItem, hpp_beli: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid var(--border-medium)' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>Harga Jual Pasien (Rp)</label>
-                  <input
-                    type="number"
-                    required
-                    value={newHargaItem.harga_jual}
-                    onChange={(e) => setNewHargaItem({ ...newHargaItem, harga_jual: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid var(--border-medium)' }}
-                  />
-                </div>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>Harga Jual Pasien (Rp)</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={newHargaItem.harga_jual}
+                  onChange={(e) => setNewHargaItem({ ...newHargaItem, harga_jual: Number(e.target.value) })}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid var(--border-medium)' }}
+                />
               </div>
 
               <div style={{ marginBottom: '1.25rem' }}>
@@ -1473,12 +1497,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
                 />
               </div>
 
+              {hargaError && (
+                <div style={{ marginBottom: '1rem', padding: '0.7rem 0.9rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#b91c1c', fontSize: '0.8125rem', fontWeight: 600 }}>
+                  {hargaError}
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <button type="button" onClick={() => setShowAddHargaModal(false)} className="btn btn-secondary">
+                <button
+                  type="button"
+                  onClick={() => { setShowAddHargaModal(false); setHargaError(null); }}
+                  className="btn btn-secondary"
+                  disabled={hargaSaving}
+                >
                   Batal
                 </button>
-                <button type="submit" className="btn btn-primary btn-shimmer">
-                  Simpan Riwayat Harga
+                <button type="submit" className="btn btn-primary btn-shimmer" disabled={hargaSaving}>
+                  {hargaSaving ? 'Menyimpan...' : 'Simpan Riwayat Harga'}
                 </button>
               </div>
             </form>

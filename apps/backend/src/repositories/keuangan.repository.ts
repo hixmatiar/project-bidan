@@ -1,6 +1,17 @@
 import db from '../db/pool';
 
 export class KeuanganRepository {
+  async findPenjaminMandiri(): Promise<string | null> {
+    const result = await db.query<{ penjamin_id: string }>(
+      `SELECT TOP 1 penjamin_id
+         FROM [Penjamin]
+        WHERE aktif = 1 AND (jenis = 'MANDIRI' OR nama LIKE '%Mandiri%')
+        ORDER BY nama ASC`,
+      {}
+    );
+    return result.recordset[0]?.penjamin_id ?? null;
+  }
+
   async kunjunganExists(kunjunganId: string): Promise<boolean> {
     const result = await db.query<{ ada: number }>(
       `SELECT TOP 1 1 AS ada FROM [Kunjungan] WHERE kunjungan_id = @id`,

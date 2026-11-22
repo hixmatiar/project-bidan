@@ -80,12 +80,20 @@ export class AuthRepository {
     );
   }
 
-  async enqueueNotification(email: string, pesan: string): Promise<void> {
+  async recordNotification(
+    email: string,
+    pesan: string,
+    status: 'TERKIRIM' | 'ANTRE' = 'ANTRE'
+  ): Promise<void> {
     await db.query(
       `INSERT INTO [Notifikasi_Log] (jenis, tujuan, pesan, status, retry_count, waktu_kirim)
-       VALUES ('OTP_RESET', @email, @pesan, 'ANTRE', 0, SYSDATETIME())`,
-      { email, pesan }
+       VALUES ('OTP_RESET', @email, @pesan, @status, 0, SYSDATETIME())`,
+      { email, pesan, status }
     );
+  }
+
+  async enqueueNotification(email: string, pesan: string): Promise<void> {
+    await this.recordNotification(email, pesan, 'ANTRE');
   }
 
   async findActiveOtp(akunId: string): Promise<OtpRow | undefined> {

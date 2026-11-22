@@ -12,7 +12,25 @@ const transport = config.SMTP_HOST
     })
   : null;
 
+/** Alamat pengirim harus terverifikasi di Brevo; SMTP_USER hanya akun relay. */
+export const alamatPengirim = (): string =>
+  config.SENDER_EMAIL ?? config.SMTP_USER ?? 'no-reply@localhost';
+
 export const isMailerEnabled = (): boolean => transport !== null;
+
+/** Cek kredensial SMTP saat startup tanpa menggagalkan server. */
+export const verifyMailer = async (): Promise<boolean> => {
+  if (!transport) {
+    return false;
+  }
+  try {
+    await transport.verify();
+    return true;
+  } catch (err) {
+    console.error('[mailer] verifikasi SMTP gagal:', err instanceof Error ? err.message : err);
+    return false;
+  }
+};
 
 export const sendMail = async (to: string, subject: string, text: string): Promise<boolean> => {
   if (!transport) {
@@ -20,7 +38,7 @@ export const sendMail = async (to: string, subject: string, text: string): Promi
   }
   try {
     await transport.sendMail({
-      from: config.SMTP_USER ?? 'no-reply@localhost',
+      from: { name: 'Klinik Bidan Ria', address: alamatPengirim() },
       to,
       subject,
       text

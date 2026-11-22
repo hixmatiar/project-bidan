@@ -45,7 +45,7 @@ export const ancSchema = z.object({
 });
 
 export const persalinanSchema = z.object({
-  kunjungan_id: z.string().uuid().optional(),
+  kunjungan_id: z.string().uuid(),
   penolong_staf_id: z.string().uuid().optional(),
   waktu_persalinan: z.string().max(40).optional(),
   jenis_persalinan: z.string().min(1).max(30),
@@ -67,7 +67,7 @@ export const klinisBayiSchema = z.object({
 
 export const imunisasiSchema = z.object({
   vaksin_id: z.string().uuid(),
-  kunjungan_id: z.string().uuid().optional(),
+  kunjungan_id: z.string().uuid(),
   batch_id: z.string().uuid().optional(),
   dosis_ke: z.number().int().min(1).max(10),
   tanggal: dateSchema
@@ -75,7 +75,7 @@ export const imunisasiSchema = z.object({
 
 export const kbSchema = z.object({
   metode_id: z.string().uuid(),
-  kunjungan_id: z.string().uuid().optional(),
+  kunjungan_id: z.string().uuid(),
   tanggal: dateSchema,
   kontrol_berikutnya: dateSchema.optional(),
   efek_samping: z.string().max(255).optional()
