@@ -39,6 +39,82 @@ export class KeuanganRepository {
     return result.recordset.length > 0;
   }
 
+  async findOrCreateKunjunganByPasien(pasienId: string): Promise<string | null> {
+    const existing = await db.query<{ kunjungan_id: string }>(
+      `SELECT TOP 1 kunjungan_id FROM [Kunjungan] WHERE pasien_id = @id ORDER BY tgl_masuk DESC`,
+      { id: pasienId }
+    );
+    if (existing.recordset[0]?.kunjungan_id) {
+      return existing.recordset[0].kunjungan_id;
+    }
+    const unitRes = await db.query<{ unit_id: string }>(
+      `SELECT TOP 1 unit_id FROM [Unit_Pelayanan] WHERE aktif = 1 ORDER BY nama ASC`,
+      {}
+    );
+    const dpjpRes = await db.query<{ staf_id: string }>(
+      `SELECT TOP 1 staf_id FROM [Staf] WHERE aktif = 1 ORDER BY nama ASC`,
+      {}
+    );
+    const penjaminRes = await db.query<{ penjamin_id: string }>(
+      `SELECT TOP 1 penjamin_id FROM [Penjamin] WHERE aktif = 1 ORDER BY nama ASC`,
+      {}
+    );
+    const unitId = unitRes.recordset[0]?.unit_id;
+    const dpjpId = dpjpRes.recordset[0]?.staf_id;
+    const penjaminId = penjaminRes.recordset[0]?.penjamin_id;
+    if (!unitId || !dpjpId || !penjaminId) {
+      return null;
+    }
+    const created = await db.query<{ kunjungan_id: string }>(
+      `INSERT INTO [Kunjungan] (pasien_id, unit_id, dpjp_staf_id, penjamin_id, jenis_kunjungan, status, tgl_masuk)
+       OUTPUT INSERTED.kunjungan_id
+       VALUES (@pasienId, @unitId, @dpjpId, @penjaminId, 'RAWAT_JALAN', 'SELESAI', SYSDATETIME())`,
+      { pasienId, unitId, dpjpId, penjaminId }
+    );
+    return created.recordset[0]?.kunjungan_id ?? null;
+  }
+
+  async saveRincian(
+    tagihanId: string,
+    items: Array<{
+      layanan_id?: string | null;
+      obat_id?: string | null;
+      paket_id?: string | null;
+      qty?: number;
+      harga_satuan?: number;
+      subtotal?: number;
+    }>
+  ): Promise<number> {
+    let total = 0;
+    for (const item of items) {
+      const qty = item.qty && item.qty > 0 ? Number(item.qty) : 1;
+      const harga = item.harga_satuan ? Number(item.harga_satuan) : 0;
+      const subtotal = item.subtotal !== undefined ? Number(item.subtotal) : qty * harga;
+      total += subtotal;
+      await db.query(
+        `INSERT INTO [Tagihan_Rincian] (tagihan_id, layanan_id, obat_id, paket_id, qty, harga_satuan, subtotal)
+         VALUES (@tagihan_id, @layanan_id, @obat_id, @paket_id, @qty, @harga_satuan, @subtotal)`,
+        {
+          tagihan_id: tagihanId,
+          layanan_id: item.layanan_id ?? null,
+          obat_id: item.obat_id ?? null,
+          paket_id: item.paket_id ?? null,
+          qty,
+          harga_satuan: harga,
+          subtotal
+        }
+      );
+    }
+    await db.query(
+      `UPDATE [Tagihan]
+          SET total_tagihan = @total,
+              status = CASE WHEN total_dibayar >= @total AND @total > 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END
+        WHERE tagihan_id = @id`,
+      { id: tagihanId, total }
+    );
+    return total;
+  }
+
   async findTagihanIdByKunjungan(kunjunganId: string): Promise<string | null> {
     const result = await db.query<{ tagihan_id: string }>(
       `SELECT TOP 1 tagihan_id FROM [Tagihan] WHERE kunjungan_id = @id`,

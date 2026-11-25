@@ -7,7 +7,7 @@ const service = new KeuanganService();
 
 export const detailTagihan = asyncHandler(async (req, res) => {
   const { id } = req.validated?.params as { id: string };
-  return respond.ok(res, await service.detailTagihan(id));
+  return respond.ok(res, await service.detailTagihan(id, req.body));
 });
 
 export const bayar = asyncHandler(async (req, res) => {

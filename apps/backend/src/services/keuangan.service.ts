@@ -20,16 +20,44 @@ export class KeuanganService {
     return stafId;
   }
 
-  async detailTagihan(kunjunganId: string): Promise<Record<string, unknown>> {
-    if (!(await this.repository.kunjunganExists(kunjunganId))) {
-      throw ApiError.notFound('Kunjungan tidak ditemukan');
+  async detailTagihan(
+    kunjunganId: string,
+    payload?: {
+      rincian?: Array<{
+        layanan_id?: string | null;
+        obat_id?: string | null;
+        paket_id?: string | null;
+        qty?: number;
+        harga_satuan?: number;
+        subtotal?: number;
+      }>;
+      pasien_id?: string;
     }
-    let tagihanId = await this.repository.findTagihanIdByKunjungan(kunjunganId);
+  ): Promise<Record<string, unknown>> {
+    let targetKunjunganId = kunjunganId;
+    if (!(await this.repository.kunjunganExists(targetKunjunganId))) {
+      let fallbackKunjungan: string | null = null;
+      if (typeof this.repository.findOrCreateKunjunganByPasien === 'function') {
+        fallbackKunjungan = await this.repository.findOrCreateKunjunganByPasien(kunjunganId);
+      }
+      if (fallbackKunjungan) {
+        targetKunjunganId = fallbackKunjungan;
+      } else {
+        throw ApiError.notFound('Kunjungan tidak ditemukan');
+      }
+    }
+    let tagihanId = await this.repository.findTagihanIdByKunjungan(targetKunjunganId);
     if (!tagihanId) {
-      tagihanId = await this.repository.createTagihan(kunjunganId);
+      tagihanId = await this.repository.createTagihan(targetKunjunganId);
     }
     if (!tagihanId) {
       throw ApiError.internal('Gagal membuat tagihan');
+    }
+
+    if (payload?.rincian && Array.isArray(payload.rincian) && payload.rincian.length > 0) {
+      if (typeof this.repository.saveRincian === 'function') {
+        await this.repository.saveRincian(tagihanId, payload.rincian);
+      }
     }
 
     const [rincian, header] = await Promise.all([

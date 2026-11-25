@@ -99,9 +99,27 @@ export const AboutSection: React.FC = () => {
                 </div>
                 <div>
                   <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--color-slate-900)' }}>Lokasi Mudah Dijangkau di Kota Jambi</h4>
-                  <p style={{ fontSize: '0.875rem', color: 'var(--color-slate-600)', marginTop: '0.2rem' }}>
-                    Berada di kawasan Perumahan Bougenvile Blok FG 12b, Simpang Rimbo, Kota Jambi dengan akses parkir dan lingkungan tenang.
+                  <p style={{ fontSize: '0.875rem', color: 'var(--color-slate-600)', marginTop: '0.2rem', lineHeight: '1.5' }}>
+                    {KLINIK_INFO.alamat}
                   </p>
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <a
+                      href={KLINIK_INFO.googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        fontSize: '0.8125rem',
+                        fontWeight: 600,
+                        color: 'var(--color-primary-dark)',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      🗺️ Lihat Rute di Google Maps ↗
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>

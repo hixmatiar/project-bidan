@@ -16,6 +16,8 @@ import { ambilError, ambilErrorSync } from './helpers';
 
 const buatRepo = () => ({
   kunjunganExists: jest.fn().mockResolvedValue(true),
+  findOrCreateKunjunganByPasien: jest.fn().mockResolvedValue(null),
+  saveRincian: jest.fn().mockResolvedValue(0),
   findPenjaminMandiri: jest.fn(),
   findTagihanIdByKunjungan: jest.fn(),
   createTagihan: jest.fn(),

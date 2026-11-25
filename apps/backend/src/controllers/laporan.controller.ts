@@ -1,9 +1,11 @@
 import { asyncHandler } from '../middleware/asyncHandler';
 import respond from '../http/respond';
 import { LaporanService } from '../services/laporan.service';
+import LaporanRepository from '../repositories/laporan.repository';
 import type { KontenBody, KontenUpdateBody, PeriodeInput } from '../validation/laporan';
 
 const service = new LaporanService();
+const repo = new LaporanRepository();
 
 export const ringkasan = asyncHandler(async (req, res) => {
   const body = req.validated?.body as PeriodeInput;
@@ -62,7 +64,14 @@ export const kirimUlangNotifikasi = asyncHandler(async (req, res) => {
 
 export const listAudit = asyncHandler(async (req, res) => {
   const body = req.validated?.body as PeriodeInput;
-  return respond.ok(res, await service.listAudit(body));
+  const data = await service.listAudit(body);
+  let totalPengguna = 0;
+  try {
+    totalPengguna = await repo.totalPengguna();
+  } catch {
+    totalPengguna = 0;
+  }
+  return respond.ok(res, data, totalPengguna > 0 ? { total_pengguna: totalPengguna, total_audit: data.length } : null);
 });
 
 export default {

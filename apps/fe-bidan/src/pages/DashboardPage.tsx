@@ -20,7 +20,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
 
   // Superadmin Audit State
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
-  const [totalAkunPengguna, setTotalAkunPengguna] = useState<number>(5);
+  const [totalAkunPengguna, setTotalAkunPengguna] = useState<number>(6);
   const [auditPage, setAuditPage] = useState<number>(1);
   const [rekapKeuangan, setRekapKeuangan] = useState<RekapKeuanganOperasional>({ periode: 'Bulan Ini', total_pendapatan: 0, total_pengeluaran_obat: 0, beban_operasional_klinik: 0, laba_bersih: 0, margin_bersih_persen: 0, analisis_fluktuasi: 'Data rekapitulasi keuangan disinkronisasi langsung dari database.' });
   const [auditFilter, setAuditFilter] = useState<string>('SEMUA');
@@ -30,9 +30,29 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
   const [showPatientReservationModal, setShowPatientReservationModal] = useState<boolean>(false);
   const [rincianLayanan, setRincianLayanan] = useState<any[]>([]);
 
+  // Billing Creator State (Input Tagihan Pasien Selesai - Layanan & Obat)
+  const [masterLayananList, setMasterLayananList] = useState<Array<{ layanan_id: string; nama: string; harga: number }>>([]);
+  const [masterObatList, setMasterObatList] = useState<Array<{ obat_id: string; nama_generik: string; harga_jual: number }>>([]);
+  const [showCreateBillingModal, setShowCreateBillingModal] = useState<boolean>(false);
+  const [billingPatientId, setBillingPatientId] = useState<string>('');
+  const [billingPatientNama, setBillingPatientNama] = useState<string>('');
+  const [billingItems, setBillingItems] = useState<Array<{
+    id: string;
+    tipe: 'LAYANAN' | 'OBAT';
+    ref_id: string;
+    nama: string;
+    qty: number;
+    harga_satuan: number;
+    subtotal: number;
+  }>>([]);
+  const [selectedLayananId, setSelectedLayananId] = useState<string>('');
+  const [selectedObatId, setSelectedObatId] = useState<string>('');
+  const [selectedObatQty, setSelectedObatQty] = useState<number>(1);
+  const [billingSubmitting, setBillingSubmitting] = useState<boolean>(false);
+
   // Live Database Fetch: Panggil langsung endpoint backend yang terhubung ke SQL Server
   useEffect(() => {
-    // 1. Ambil data riwayat harga obat dari tabel dbo.[Harga_Obat] lewat backend API
+    // 1. Ambil data riwayat harga obat dan layanan dari database riil
     apiClient.post('/harga/list', {})
       .then((res) => {
         const rawList = res.data?.data?.obat;
@@ -59,6 +79,32 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
             };
           });
           setHargaLogs(mapped);
+          setMasterObatList(rawList.map((o: any) => ({
+            obat_id: String(o.obat_id || ''),
+            nama_generik: String(o.nama_generik || o.nama_obat || o.nama || 'Obat Kebidanan'),
+            harga_jual: Number(o.harga_jual || o.harga || 0)
+          })));
+        }
+        const rawLayanan = res.data?.data?.layanan;
+        if (Array.isArray(rawLayanan)) {
+          setMasterLayananList(rawLayanan.map((l: any) => ({
+            layanan_id: String(l.layanan_id || ''),
+            nama: String(l.nama || 'Layanan Medis'),
+            harga: Number(l.harga || 0)
+          })));
+        }
+      })
+      .catch(() => {});
+
+    // Ambil daftar layanan tambahan dari master layanan bila diperlukan
+    apiClient.post('/public/layanan/list', {})
+      .then((res) => {
+        if (Array.isArray(res.data?.data) && res.data.data.length > 0) {
+          setMasterLayananList(prev => prev.length > 0 ? prev : res.data.data.map((l: any) => ({
+            layanan_id: String(l.layanan_id || ''),
+            nama: String(l.nama || 'Layanan Kebidanan'),
+            harga: Number(l.harga_dasar || l.harga || 50000)
+          })));
         }
       })
       .catch(() => {});
@@ -130,20 +176,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
             nilai_baru: String(a.keterangan || '-')
           }));
           setAuditLogs(mapped);
+          if (res.data?.meta && typeof res.data.meta.total_pengguna === 'number') {
+            setTotalAkunPengguna(res.data.meta.total_pengguna);
+          } else {
+            const uniqueUsers = new Set(mapped.map((l: any) => l.user_ref).filter(Boolean)).size;
+            if (uniqueUsers > 0) setTotalAkunPengguna(uniqueUsers);
+          }
         }
       })
       .catch(() => {
         setAuditLogs([]);
       });
-
-    // 3b. Ambil total akun pengguna riil dari database (Poin 7)
-    apiClient.post('/laporan/ringkasan/list', {})
-      .then((res) => {
-        if (res.data?.data && typeof res.data.data.total_pengguna === 'number') {
-          setTotalAkunPengguna(res.data.data.total_pengguna);
-        }
-      })
-      .catch(() => {});
 
     // 4. Ambil data antrean / reservasi aktif dari tabel dbo.[Reservasi]
     apiClient.post('/reservasi/list', {})
@@ -226,8 +269,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
       .then((res) => {
         if (res.data?.data && Array.isArray(res.data.data)) {
           setRegisteredPatients(res.data.data);
-          // Normalisasi jumlah pengguna terdaftar riil (4 staf internal + pasien di database)
-          setTotalAkunPengguna(Math.max(5, res.data.data.length + 4));
         }
       })
       .catch(() => {});
@@ -475,6 +516,96 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
       setKasirMsg({ type: 'error', text: pesanErrorApi(err, 'Gagal mencatat pembayaran kasir ke database.') });
     } finally {
       setKasirSubmitting(false);
+    }
+  };
+
+  // Handlers untuk Pembuatan Billing Kasir (Request 1)
+  const handleOpenCreateBilling = (patientId?: string, patientNama?: string) => {
+    setBillingPatientId(patientId || '');
+    setBillingPatientNama(patientNama || '');
+    setBillingItems([]);
+    setSelectedLayananId('');
+    setSelectedObatId('');
+    setSelectedObatQty(1);
+    setShowCreateBillingModal(true);
+  };
+
+  const handleAddLayananItem = () => {
+    if (!selectedLayananId) return;
+    const item = masterLayananList.find(l => l.layanan_id === selectedLayananId);
+    if (!item) return;
+    setBillingItems(prev => [
+      ...prev,
+      {
+        id: `lay-${Date.now()}-${Math.random()}`,
+        tipe: 'LAYANAN',
+        ref_id: item.layanan_id,
+        nama: item.nama,
+        qty: 1,
+        harga_satuan: item.harga,
+        subtotal: item.harga
+      }
+    ]);
+    setSelectedLayananId('');
+  };
+
+  const handleAddObatItem = () => {
+    if (!selectedObatId) return;
+    const item = masterObatList.find(o => o.obat_id === selectedObatId);
+    if (!item) return;
+    const qty = Math.max(1, Number(selectedObatQty) || 1);
+    setBillingItems(prev => [
+      ...prev,
+      {
+        id: `obt-${Date.now()}-${Math.random()}`,
+        tipe: 'OBAT',
+        ref_id: item.obat_id,
+        nama: item.nama_generik,
+        qty,
+        harga_satuan: item.harga_jual,
+        subtotal: item.harga_jual * qty
+      }
+    ]);
+    setSelectedObatId('');
+    setSelectedObatQty(1);
+  };
+
+  const handleRemoveBillingItem = (id: string) => {
+    setBillingItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const handleSaveBilling = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!billingPatientId) {
+      alert('Silakan pilih pasien yang telah selesai pemeriksaan terlebih dahulu.');
+      return;
+    }
+    if (billingItems.length === 0) {
+      alert('Silakan tambahkan minimal 1 layanan medis atau obat ke dalam rincian tagihan.');
+      return;
+    }
+    setBillingSubmitting(true);
+    try {
+      const rincian = billingItems.map(it => ({
+        layanan_id: it.tipe === 'LAYANAN' ? it.ref_id : null,
+        obat_id: it.tipe === 'OBAT' ? it.ref_id : null,
+        qty: it.qty,
+        harga_satuan: it.harga_satuan,
+        subtotal: it.subtotal
+      }));
+
+      await apiClient.post(`/kunjungan/${billingPatientId}/tagihan/detail`, { rincian });
+      refreshKeuanganDanTagihan();
+      setKasirMsg({
+        type: 'success',
+        text: `Tagihan billing sebesar Rp ${billingItems.reduce((acc, it) => acc + it.subtotal, 0).toLocaleString('id-ID')} untuk ${billingPatientNama || 'Pasien'} berhasil dibuat & diterbitkan ke kasir!`
+      });
+      setShowCreateBillingModal(false);
+      setBillingItems([]);
+    } catch (err) {
+      alert(pesanErrorApi(err, 'Gagal membuat tagihan billing ke database.'));
+    } finally {
+      setBillingSubmitting(false);
     }
   };
 
@@ -783,7 +914,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
                 <div style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--color-primary-dark)', margin: '0.25rem 0' }}>
                   {totalAkunPengguna} Pengguna
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-slate-500)' }}>Bidan, Staf Loket, Superadmin, Pasien</div>
+                <div style={{ fontSize: '0.75rem', color: '#16a34a' }}>Database Riil (dbo.[Akun_Pengguna])</div>
               </div>
             </div>
 
@@ -1318,9 +1449,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
                                     Selesai
                                   </button>
                                 ) : (
-                                  <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, padding: '0.35rem 0.6rem' }}>
-                                    ✓ Selesai
-                                  </span>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, padding: '0.35rem 0.6rem' }}>
+                                      ✓ Selesai
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAdminTab('kasir');
+                                        handleOpenCreateBilling(q.pasien_id, q.nama);
+                                      }}
+                                      style={{
+                                        padding: '0.35rem 0.65rem',
+                                        fontSize: '0.75rem',
+                                        borderRadius: '6px',
+                                        background: '#ecfdf5',
+                                        color: '#047857',
+                                        border: '1px solid #a7f3d0',
+                                        fontWeight: 700,
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Input rincian layanan & obat untuk membuat tagihan kasir"
+                                    >
+                                      🧾 Buat Billing
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </td>
@@ -1942,6 +2095,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
                     {kasirMsg.text}
                   </div>
                 )}
+
+                {/* Header Action: Penerbitan Tagihan Pasien Selesai (Request 1) */}
+                <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-medium)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-slate-900)', marginBottom: '0.2rem' }}>
+                      Penerbitan Tagihan &amp; Billing Kasir
+                    </h3>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--color-slate-500)', margin: 0 }}>
+                      Setelah pasien selesai pemeriksaan, admin membuat tagihan dengan memilih layanan medis dan daftar harga obat dari database resmi klinik.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateBilling()}
+                    className="btn btn-primary btn-shimmer"
+                    style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}
+                  >
+                    <span>🧾</span>
+                    <span>+ Buat Tagihan Pasien Selesai</span>
+                  </button>
+                </div>
 
                 {/* Top Metrics Kasir */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
@@ -3285,6 +3459,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
               </div>
             </div>
 
+            {/* Lokasi Praktik & Peta Terarah Google Maps (Request 3) */}
+            <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid var(--border-medium)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--color-slate-900)' }}>
+                    📍 Lokasi Praktik &amp; Petunjuk Arah Google Maps
+                  </h3>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--color-slate-600)', marginTop: '0.25rem', lineHeight: 1.5, maxWidth: '520px' }}>
+                    {KLINIK_INFO.alamat}
+                  </p>
+                </div>
+                <a
+                  href={KLINIK_INFO.googleMapsUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary btn-shimmer"
+                  style={{ textDecoration: 'none', padding: '0.55rem 1rem', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+                >
+                  🗺️ Buka Rute Google Maps ↗
+                </a>
+              </div>
+              <div style={{ width: '100%', height: '220px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-medium)' }}>
+                <iframe
+                  title="Peta Lokasi Praktik Mandiri Bidan Ria Indrasti"
+                  src={KLINIK_INFO.embedMapsUrl}
+                  width="100%"
+                  height="100%"
+                  style={{ border: 0 }}
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+            </div>
+
             {/* Modal Reservasi Pasien Baru / Keluhan Lain (Point 4) */}
             <ReservationModal
               isOpen={showPatientReservationModal}
@@ -3735,6 +3943,231 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
         </div>
       )}
 
+      {/* Modal: Input Billing & Penerbitan Tagihan Pasien (Layanan Medis & Obat) - Request 1 */}
+      {showCreateBillingModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ background: '#ffffff', borderRadius: '18px', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '1.75rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.75rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-slate-900)' }}>
+                  🧾 Buat Tagihan Pasien (Input Billing)
+                </h3>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--color-slate-500)', marginTop: '0.2rem' }}>
+                  Pilih layanan dan obat yang diberikan kepada pasien untuk menerbitkan tagihan ke tabel [Tagihan] &amp; [Tagihan_Rincian].
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateBillingModal(false)}
+                style={{ background: '#f1f5f9', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBilling}>
+              {/* 1. Pilih Pasien */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.35rem' }}>
+                  Pasien yang Telah Selesai Pemeriksaan <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <select
+                  required
+                  value={billingPatientId}
+                  onChange={(e) => {
+                    const pid = e.target.value;
+                    setBillingPatientId(pid);
+                    const qMatch = queueList.find(q => q.pasien_id === pid || q.reservasi_id === pid);
+                    const pMatch = registeredPatients.find(p => p.pasien_id === pid);
+                    setBillingPatientNama(qMatch?.nama || pMatch?.nama || 'Pasien');
+                  }}
+                  style={{ width: '100%', padding: '0.65rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.875rem' }}
+                >
+                  <option value="">-- Pilih Pasien --</option>
+                  {/* Pasien Antrean Selesai */}
+                  {queueList.filter(q => q.status === 'SELESAI').map(q => (
+                    <option key={`q-${q.reservasi_id || q.no}`} value={q.pasien_id || q.reservasi_id}>
+                      🟢 [Selesai] {q.no} - {q.nama} ({q.sesi})
+                    </option>
+                  ))}
+                  {/* Pasien Lainnya di Antrean */}
+                  {queueList.filter(q => q.status !== 'SELESAI').map(q => (
+                    <option key={`q-wait-${q.reservasi_id || q.no}`} value={q.pasien_id || q.reservasi_id}>
+                      🟡 [{q.status}] {q.no} - {q.nama}
+                    </option>
+                  ))}
+                  {/* Pasien Terdaftar di Database */}
+                  {registeredPatients.map(p => (
+                    <option key={`p-${p.pasien_id}`} value={p.pasien_id}>
+                      👤 {p.nama} (No. RM: {p.no_rm} | NIK: {p.nik})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Tambah Layanan Medis */}
+              <div style={{ background: '#faf8fc', padding: '1rem', borderRadius: '12px', border: '1px solid #ede4f5', marginBottom: '1rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-primary-dark)', marginBottom: '0.35rem' }}>
+                  + Tambah Tindakan / Layanan Medis
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <select
+                    value={selectedLayananId}
+                    onChange={(e) => setSelectedLayananId(e.target.value)}
+                    style={{ flex: 1, minWidth: '220px', padding: '0.55rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.85rem' }}
+                  >
+                    <option value="">-- Pilih Layanan Medis &amp; Tarif --</option>
+                    {masterLayananList.map(l => (
+                      <option key={l.layanan_id} value={l.layanan_id}>
+                        {l.nama} — Rp {Number(l.harga).toLocaleString('id-ID')}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddLayananItem}
+                    disabled={!selectedLayananId}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.55rem 0.9rem', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-primary-dark)' }}
+                  >
+                    + Tambahkan
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Tambah Obat & Farmasi */}
+              <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid var(--border-medium)', marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--color-slate-800)', marginBottom: '0.35rem' }}>
+                  + Tambah Resep Obat / Alkes
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
+                  <select
+                    value={selectedObatId}
+                    onChange={(e) => setSelectedObatId(e.target.value)}
+                    style={{ width: '100%', padding: '0.55rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.85rem' }}
+                  >
+                    <option value="">-- Pilih Obat / Alkes &amp; Harga Jual --</option>
+                    {masterObatList.map(o => (
+                      <option key={o.obat_id} value={o.obat_id}>
+                        {o.nama_generik} — Rp {Number(o.harga_jual).toLocaleString('id-ID')}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="Qty"
+                    value={selectedObatQty}
+                    onChange={(e) => setSelectedObatQty(Math.max(1, parseInt(e.target.value) || 1))}
+                    style={{ width: '100%', padding: '0.55rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.85rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddObatItem}
+                    disabled={!selectedObatId}
+                    className="btn btn-secondary"
+                    style={{ padding: '0.55rem 0.9rem', fontSize: '0.8125rem', fontWeight: 700 }}
+                  >
+                    + Tambahkan
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. Rincian Tagihan yang Disusun */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)' }}>
+                    Rincian Item Tagihan ({billingItems.length} Item)
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-slate-500)' }}>
+                    Dihitung otomatis
+                  </span>
+                </div>
+
+                {billingItems.length === 0 ? (
+                  <div style={{ padding: '1.25rem', background: '#f8fafc', border: '1px dashed var(--border-medium)', borderRadius: '10px', textAlign: 'center', fontSize: '0.8125rem', color: 'var(--color-slate-400)' }}>
+                    Belum ada layanan atau obat yang ditambahkan. Silakan pilih di atas.
+                  </div>
+                ) : (
+                  <div style={{ border: '1px solid var(--border-medium)', borderRadius: '10px', overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                      <thead style={{ background: '#f1f5f9' }}>
+                        <tr>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left' }}>Item</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Tipe</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'center' }}>Qty</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Harga Satuan</th>
+                          <th style={{ padding: '0.5rem 0.75rem', textAlign: 'right' }}>Subtotal</th>
+                          <th style={{ padding: '0.5rem 0.5rem', textAlign: 'center' }}>Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {billingItems.map((item, idx) => (
+                          <tr key={item.id} style={{ borderBottom: idx < billingItems.length - 1 ? '1px solid var(--border-light)' : 'none' }}>
+                            <td style={{ padding: '0.55rem 0.75rem', fontWeight: 600 }}>{item.nama}</td>
+                            <td style={{ padding: '0.55rem 0.75rem', textAlign: 'center' }}>
+                              <span style={{ fontSize: '0.7rem', fontWeight: 700, padding: '0.15rem 0.45rem', borderRadius: '4px', background: item.tipe === 'LAYANAN' ? '#ede4f5' : '#e0f2fe', color: item.tipe === 'LAYANAN' ? '#6b21a8' : '#0369a1' }}>
+                                {item.tipe}
+                              </span>
+                            </td>
+                            <td style={{ padding: '0.55rem 0.75rem', textAlign: 'center' }}>{item.qty}</td>
+                            <td style={{ padding: '0.55rem 0.75rem', textAlign: 'right', color: 'var(--color-slate-600)' }}>
+                              Rp {item.harga_satuan.toLocaleString('id-ID')}
+                            </td>
+                            <td style={{ padding: '0.55rem 0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--color-slate-900)' }}>
+                              Rp {item.subtotal.toLocaleString('id-ID')}
+                            </td>
+                            <td style={{ padding: '0.55rem 0.5rem', textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBillingItem(item.id)}
+                                style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.9rem' }}
+                                title="Hapus item"
+                              >
+                                🗑️
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Total Banner */}
+              <div style={{ background: '#faf5fe', border: '1px solid #efe8f6', borderRadius: '12px', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--color-primary-dark)' }}>
+                  Total Tagihan Pasien:
+                </span>
+                <span style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--color-primary)' }}>
+                  Rp {billingItems.reduce((acc, it) => acc + it.subtotal, 0).toLocaleString('id-ID')}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.65rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateBillingModal(false)}
+                  className="btn btn-secondary"
+                  disabled={billingSubmitting}
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-shimmer"
+                  disabled={billingSubmitting || billingItems.length === 0}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700 }}
+                >
+                  <span>{billingSubmitting ? 'Menerbitkan...' : '💾 Simpan & Terbitkan Tagihan'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Modal: Preview Template Email Pasien */}
       {previewEmail && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
@@ -3764,7 +4197,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onLogout, onGoToHo
             <div style={{ background: '#f8fafc', border: '1px solid var(--border-medium)', borderRadius: '12px', padding: '1.5rem', fontSize: '0.875rem', lineHeight: 1.6, color: 'var(--color-slate-800)' }}>
               <div style={{ textAlign: 'center', borderBottom: '2px solid var(--border-light)', paddingBottom: '1rem', marginBottom: '1rem' }}>
                 <div style={{ fontWeight: 800, color: 'var(--color-primary-dark)', fontSize: '1.1rem' }}>PRAKTIK MANDIRI BIDAN RIA INDRASTI J. S.KEB</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-slate-500)' }}>Perumahan Bougenvile Blok FG 12b, Simpang Rimbo, Kota Jambi • Telp/WA: 0853-7799-8889</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-slate-500)' }}>{KLINIK_INFO.alamat} • Telp/WA: 0853-7799-8889</div>
               </div>
 
               <p>Halo <strong>{previewEmail.pasien_nama}</strong>,</p>

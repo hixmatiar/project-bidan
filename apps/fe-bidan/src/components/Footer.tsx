@@ -89,15 +89,50 @@ export const Footer: React.FC = () => {
               Alamat Praktik
             </h4>
 
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', fontSize: '0.875rem' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.65rem', fontSize: '0.875rem', marginBottom: '1rem' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}>
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                 <circle cx="12" cy="10" r="3"/>
               </svg>
               <div>
                 <div style={{ color: '#ffffff', fontWeight: 600 }}>Lokasi Praktik:</div>
-                <div style={{ color: '#cbd5e1' }}>{KLINIK_INFO.alamat}</div>
+                <div style={{ color: '#cbd5e1', lineHeight: '1.5' }}>{KLINIK_INFO.alamat}</div>
+                <div style={{ marginTop: '0.5rem' }}>
+                  <a
+                    href={KLINIK_INFO.googleMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      background: 'rgba(252, 211, 77, 0.15)',
+                      color: '#fcd34d',
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '6px',
+                      fontWeight: 600,
+                      fontSize: '0.8rem',
+                      textDecoration: 'none',
+                      border: '1px solid rgba(252, 211, 77, 0.3)'
+                    }}
+                  >
+                    📍 Buka di Google Maps ↗
+                  </a>
+                </div>
               </div>
+            </div>
+
+            {/* Embedded Google Maps Preview */}
+            <div style={{ width: '100%', height: '140px', borderRadius: '10px', overflow: 'hidden', border: '1px solid rgba(255,255,255,0.15)', marginTop: '0.75rem' }}>
+              <iframe
+                title="Peta Lokasi Praktik Mandiri Bidan Ria Indrasti"
+                src={KLINIK_INFO.embedMapsUrl}
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+              />
             </div>
           </div>
         </div>

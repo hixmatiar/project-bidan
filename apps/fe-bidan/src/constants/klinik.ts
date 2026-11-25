@@ -5,10 +5,11 @@ export const KLINIK_INFO = {
   str: 'FZ00001538531658',
   layanan_jam: 'Layanan 24 Jam (Siaga Persalinan & Gawat Darurat Kebidanan)',
   jadwal_sesi: 'Sesi Praktik: 08:00 - 12:00 WIB & 16:00 - 20:00 WIB',
-  alamat: 'Perumahan bougenvile blok FG 12b. Simpang Rimbo Kota Jambi',
+  alamat: 'Perumahan bougenville lestari Blk. FG - FH No.12, RT.22, Kenali Besar, Simpang rimbo, Kota Jambi, Jambi 36361',
   telepon: '085377998889',
   whatsapp: '085377998889',
   email: 'info@bidanriaindrasti.id',
   kota: 'Kota Jambi',
-  googleMapsUrl: 'https://maps.google.com/?q=Perumahan+bougenvile+blok+FG+12b+Simpang+Rimbo+Kota+Jambi',
+  googleMapsUrl: 'https://maps.app.goo.gl/6t5DffhvhnTLB9bo9',
+  embedMapsUrl: 'https://maps.google.com/maps?q=Perumahan+bougenville+lestari+Blk.+FG+-+FH+No.12,+RT.22,+Kenali+Besar,+Simpang+rimbo,+Kota+Jambi,+Jambi+36361&t=&z=16&ie=UTF8&iwloc=&output=embed',
 };
