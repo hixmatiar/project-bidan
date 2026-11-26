@@ -206,16 +206,25 @@ export class KeuanganRepository {
               t.status,
               t.tgl_terbit,
               CONCAT('INV-', REPLACE(CONVERT(VARCHAR(10), t.tgl_terbit, 120), '-', ''), '-', UPPER(SUBSTRING(CAST(t.tagihan_id AS VARCHAR(36)), 1, 6))) AS no_tagihan,
+              p.pasien_id,
               p.nama AS nama_pasien,
               p.no_rm,
-              p.nik
+              p.nik,
+              STUFF((
+                SELECT ', ' + COALESCE(lm.nama, ob.nama_generik, 'Item') + ' (' + CAST(tr.qty AS VARCHAR(10)) + 'x)'
+                  FROM [Tagihan_Rincian] tr
+                  LEFT JOIN [Layanan_Medis] lm ON lm.layanan_id = tr.layanan_id
+                  LEFT JOIN [Obat] ob ON ob.obat_id = tr.obat_id
+                 WHERE tr.tagihan_id = t.tagihan_id
+                   FOR XML PATH(''), TYPE
+              ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS rincian_item
          FROM [Tagihan] t
          LEFT JOIN [Kunjungan] k ON k.kunjungan_id = t.kunjungan_id
          LEFT JOIN [Pasien] p ON p.pasien_id = k.pasien_id
         WHERE (@status IS NULL OR t.status = @status)
           AND (@dari IS NULL OR t.tgl_terbit >= CAST(@dari AS DATE))
           AND (@sampai IS NULL OR t.tgl_terbit < DATEADD(DAY, 1, CAST(@sampai AS DATE)))
-        ORDER BY t.tgl_terbit DESC, t.tagihan_id DESC`,
+        ORDER BY CASE WHEN t.status = 'BELUM_LUNAS' THEN 0 ELSE 1 END ASC, t.tgl_terbit DESC, t.tagihan_id DESC`,
       { limit, status, dari, sampai }
     );
     return result.recordset;
@@ -237,37 +246,76 @@ export class KeuanganRepository {
 
   async rincianPendapatanLayanan(): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
-      `SELECT l.layanan_id, l.nama AS pos_layanan,
+      `SELECT l.layanan_id, l.kode, l.nama AS pos_layanan, l.kategori,
               COUNT(DISTINCT tr.tagihan_id) AS volume_pasien,
-              COALESCE(SUM(tr.subtotal), 0) AS pendapatan_bruto,
-              COALESCE(SUM(tr.subtotal * 0.35), 0) AS hpp_medis,
-              COALESCE(SUM(tr.subtotal * 0.65), 0) AS margin_kontribusi
+              ISNULL(SUM(tr.qty), 0) AS jumlah_tindakan,
+              COALESCE(SUM(tr.subtotal), 0) AS pendapatan_bruto
          FROM [Layanan_Medis] l
          LEFT JOIN [Tagihan_Rincian] tr ON tr.layanan_id = l.layanan_id
-        GROUP BY l.layanan_id, l.nama
-        ORDER BY pendapatan_bruto DESC`
+        WHERE l.aktif = 1
+        GROUP BY l.layanan_id, l.kode, l.nama, l.kategori
+        ORDER BY pendapatan_bruto DESC, l.nama ASC`
     );
     return result.recordset;
   }
 
   async listHargaLayanan(): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
-      `SELECT hl.harga_layanan_id, hl.layanan_id, l.nama, hl.kelas_id, hl.penjamin_id,
-              hl.harga, hl.berlaku_dari, hl.berlaku_sampai
-         FROM [Harga_Layanan] hl
-         JOIN [Layanan_Medis] l ON l.layanan_id = hl.layanan_id
-        WHERE hl.berlaku_sampai IS NULL OR hl.berlaku_sampai >= CAST(SYSDATETIME() AS DATE)`
+      `SELECT hl.harga_layanan_id,
+              l.layanan_id,
+              l.kode,
+              l.nama,
+              l.kategori,
+              l.satuan,
+              hl.kelas_id,
+              hl.penjamin_id,
+              ISNULL(hl.harga, 0) AS harga,
+              hl.berlaku_dari,
+              hl.berlaku_sampai,
+              ISNULL(agg.jumlah_tindakan, 0) AS jumlah_tindakan,
+              ISNULL(agg.total_realisasi, 0) AS total_realisasi
+         FROM [Layanan_Medis] l
+         OUTER APPLY (
+           SELECT TOP 1 h.harga_layanan_id, h.kelas_id, h.penjamin_id, h.harga, h.berlaku_dari, h.berlaku_sampai
+             FROM [Harga_Layanan] h
+            WHERE h.layanan_id = l.layanan_id
+              AND (h.berlaku_sampai IS NULL OR h.berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+            ORDER BY h.berlaku_dari DESC
+         ) hl
+         OUTER APPLY (
+           SELECT SUM(tr.qty) AS jumlah_tindakan, SUM(tr.subtotal) AS total_realisasi
+             FROM [Tagihan_Rincian] tr
+            WHERE tr.layanan_id = l.layanan_id
+         ) agg
+        WHERE l.aktif = 1
+        ORDER BY ISNULL(agg.total_realisasi, 0) DESC, l.nama ASC`
     );
     return result.recordset;
   }
 
   async listHargaObat(): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
-      `SELECT ho.harga_obat_id, ho.obat_id, o.nama_generik, ho.harga_jual,
-              ho.berlaku_dari, ho.berlaku_sampai
-         FROM [Harga_Obat] ho
-         JOIN [Obat] o ON o.obat_id = ho.obat_id
-        WHERE ho.berlaku_sampai IS NULL OR ho.berlaku_sampai >= CAST(SYSDATETIME() AS DATE)`
+      `SELECT ho.harga_obat_id,
+              o.obat_id,
+              o.kode,
+              o.nama_generik,
+              o.nama_dagang,
+              o.kategori,
+              o.satuan,
+              ISNULL(ho.harga_jual, 0) AS harga_jual,
+              ho.berlaku_dari,
+              ho.berlaku_sampai,
+              ho.alasan
+         FROM [Obat] o
+         OUTER APPLY (
+           SELECT TOP 1 h.harga_obat_id, h.harga_jual, h.berlaku_dari, h.berlaku_sampai, h.alasan
+             FROM [Harga_Obat] h
+            WHERE h.obat_id = o.obat_id
+              AND (h.berlaku_sampai IS NULL OR h.berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+            ORDER BY h.berlaku_dari DESC
+         ) ho
+        WHERE o.aktif = 1
+        ORDER BY o.nama_generik ASC`
     );
     return result.recordset;
   }

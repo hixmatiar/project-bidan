@@ -1,6 +1,6 @@
 export const KLINIK_INFO = {
-  nama: 'Praktik Mandiri Bidan Ria Indrasti J. S.keb',
-  bidan: 'Bdn. Ria Indrasti J., S.Keb',
+  nama: 'Praktik Mandiri Bidan Ria Indrasti J., S.Keb.',
+  bidan: 'Bdn. Ria Indrasti J., S.Keb.',
   sipb: 'NR15712411003869',
   str: 'FZ00001538531658',
   layanan_jam: 'Layanan 24 Jam (Siaga Persalinan & Gawat Darurat Kebidanan)',

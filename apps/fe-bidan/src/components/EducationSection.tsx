@@ -45,18 +45,18 @@ export const EducationSection: React.FC = () => {
           </div>
           <h2 className="section-title">Edukasi Ibu &amp; Anak</h2>
           <p className="section-subtitle">
-            Panduan medis praktis seputar kehamilan, perawatan bayi, dan kesehatan reproduksi langsung dari database klinik.
+            Panduan praktis seputar kehamilan, perawatan bayi baru lahir, dan kesehatan ibu.
           </p>
         </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '3rem 0', color: 'var(--color-slate-500)' }}>
-            Memuat materi edukasi dari server...
+            Memuat artikel edukasi...
           </div>
         ) : items.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#faf8fc', borderRadius: '16px', border: '1px dashed var(--border-medium)', color: 'var(--color-slate-500)' }}>
-            <p style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-slate-700)', marginBottom: '0.25rem' }}>Belum ada data materi edukasi</p>
-            <p style={{ fontSize: '0.875rem' }}>Data artikel edukasi akan otomatis tampil ketika ditambahkan di sistem database.</p>
+            <p style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-slate-700)', marginBottom: '0.25rem' }}>Belum ada materi edukasi</p>
+            <p style={{ fontSize: '0.875rem' }}>Artikel kesehatan ibu dan anak akan ditampilkan di bagian ini.</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.75rem' }}>

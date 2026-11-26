@@ -345,8 +345,11 @@ export class KlinisRepository {
     diagnosa?: string;
     kode_icd10?: string;
     tindakan_resep?: string;
+    protokol_tambahan?: string;
     catatan_edukasi?: string;
     tgl_kontrol_ulang?: string;
+    layanan_id?: string;
+    resep_obat?: Array<{ obat_id: string; qty: number; harga_satuan?: number }>;
     stafId: string | null;
   }): Promise<Record<string, unknown>> {
     let kunjunganId = input.kunjungan_id;
@@ -359,6 +362,9 @@ export class KlinisRepository {
       );
       if (existingKunjungan.recordset[0]?.kunjungan_id) {
         kunjunganId = existingKunjungan.recordset[0].kunjungan_id;
+        await db.query(`UPDATE [Kunjungan] SET status = 'SELESAI' WHERE kunjungan_id = @kid`, {
+          kid: kunjunganId
+        });
       } else {
         const uidRow = await db.query<{ unit_id: string }>(`SELECT TOP 1 unit_id FROM [Unit_Pelayanan] WHERE aktif = 1`);
         const sidRow = await db.query<{ staf_id: string }>(`SELECT TOP 1 staf_id FROM [Staf] WHERE aktif = 1`);
@@ -392,7 +398,7 @@ export class KlinisRepository {
         fisik: input.pemeriksaan_fisik || 'Dalam batas normal',
         asesmen: input.asesmen || input.diagnosa || 'Pemeriksaan Klinis Kebidanan',
         rencana: input.rencana || input.tindakan_resep || 'Konseling Asuhan Kebidanan',
-        catatan: input.catatan_edukasi || input.catatan_bebas || ''
+        catatan: [input.protokol_tambahan, input.catatan_edukasi, input.catatan_bebas].filter(Boolean).join(' | ')
       }
     );
     const pemeriksaanId = pemRes.recordset[0]?.pemeriksaan_id;
@@ -420,6 +426,7 @@ export class KlinisRepository {
       diagnosa: input.diagnosa || input.asesmen,
       kode_icd10: input.kode_icd10,
       tindakan: input.tindakan_resep || input.rencana,
+      protokol_tambahan: input.protokol_tambahan,
       sistolik: input.sistolik,
       diastolik: input.diastolik,
       djj: input.djj,
@@ -439,9 +446,115 @@ export class KlinisRepository {
       }
     );
 
+    // Otomatis terbitkan / perbarui Tagihan (Layanan saat daftar + Obat dari RME Bidan) & tandai reservasi SELESAI
+    let tagihanIdResult: string | null = null;
+    try {
+      await db.query(
+        `UPDATE [Reservasi]
+            SET status = 'SELESAI'
+          WHERE pasien_id = @pid
+            AND status IN ('MENUNGGU', 'DIPANGGIL')`,
+        { pid: input.pasien_id }
+      );
+
+      if (kunjunganId) {
+        let resolvedLayananId = input.layanan_id ?? null;
+        if (!resolvedLayananId) {
+          const rsvLay = await db.query<{ layanan_id: string }>(
+            `SELECT TOP 1 layanan_id FROM [Reservasi]
+              WHERE pasien_id = @pid AND layanan_id IS NOT NULL
+              ORDER BY reservasi_id DESC`,
+            { pid: input.pasien_id }
+          );
+          resolvedLayananId = rsvLay.recordset[0]?.layanan_id ?? null;
+        }
+        if (!resolvedLayananId) {
+          const defaultLay = await db.query<{ layanan_id: string }>(
+            `SELECT TOP 1 layanan_id FROM [Layanan_Medis] WHERE aktif = 1 ORDER BY nama ASC`
+          );
+          resolvedLayananId = defaultLay.recordset[0]?.layanan_id ?? null;
+        }
+
+        const tagRes = await db.query<{ tagihan_id: string; status: string }>(
+          `SELECT TOP 1 tagihan_id, status FROM [Tagihan] WHERE kunjungan_id = @kid`,
+          { kid: kunjunganId }
+        );
+        let tagihanId = tagRes.recordset[0]?.tagihan_id ?? null;
+        const tagihanStatus = tagRes.recordset[0]?.status ?? 'BELUM_LUNAS';
+
+        if (!tagihanId) {
+          const createdT = await db.query<{ tagihan_id: string }>(
+            `INSERT INTO [Tagihan] (kunjungan_id, total_tagihan, total_dibayar, status, tgl_terbit)
+             OUTPUT INSERTED.tagihan_id
+             VALUES (@kid, 0, 0, 'BELUM_LUNAS', SYSDATETIME())`,
+            { kid: kunjunganId }
+          );
+          tagihanId = createdT.recordset[0]?.tagihan_id ?? null;
+        }
+        tagihanIdResult = tagihanId;
+
+        if (tagihanId && tagihanStatus !== 'LUNAS') {
+          if (resolvedLayananId) {
+            await db.query(
+              `IF NOT EXISTS (SELECT 1 FROM [Tagihan_Rincian] WHERE tagihan_id = @tid AND layanan_id = @lid)
+               BEGIN
+                 DECLARE @hrgLay DECIMAL(18,2) = ISNULL((
+                   SELECT TOP 1 harga FROM [Harga_Layanan]
+                    WHERE layanan_id = @lid
+                      AND (berlaku_sampai IS NULL OR berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+                    ORDER BY berlaku_dari DESC
+                 ), 0);
+                 INSERT INTO [Tagihan_Rincian] (tagihan_id, layanan_id, obat_id, paket_id, qty, harga_satuan, subtotal)
+                 VALUES (@tid, @lid, NULL, NULL, 1, @hrgLay, @hrgLay);
+               END`,
+              { tid: tagihanId, lid: resolvedLayananId }
+            );
+          }
+
+          if (Array.isArray(input.resep_obat) && input.resep_obat.length > 0) {
+            await db.query(
+              `DELETE FROM [Tagihan_Rincian] WHERE tagihan_id = @tid AND obat_id IS NOT NULL`,
+              { tid: tagihanId }
+            );
+            for (const item of input.resep_obat) {
+              const qty = Math.max(1, Number(item.qty) || 1);
+              await db.query(
+                `DECLARE @hrgObt DECIMAL(18,2) = ISNULL(@overrideHarga, ISNULL((
+                   SELECT TOP 1 harga_jual FROM [Harga_Obat]
+                    WHERE obat_id = @oid
+                      AND (berlaku_sampai IS NULL OR berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+                    ORDER BY berlaku_dari DESC
+                 ), 0));
+                 INSERT INTO [Tagihan_Rincian] (tagihan_id, layanan_id, obat_id, paket_id, qty, harga_satuan, subtotal)
+                 VALUES (@tid, NULL, @oid, NULL, @qty, @hrgObt, @hrgObt * @qty);`,
+                {
+                  tid: tagihanId,
+                  oid: item.obat_id,
+                  qty,
+                  overrideHarga: item.harga_satuan && item.harga_satuan > 0 ? item.harga_satuan : null
+                }
+              );
+            }
+          }
+
+          await db.query(
+            `DECLARE @sumTot DECIMAL(18,2) = ISNULL((SELECT SUM(subtotal) FROM [Tagihan_Rincian] WHERE tagihan_id = @tid), 0);
+             UPDATE [Tagihan]
+                SET total_tagihan = @sumTot,
+                    status = CASE WHEN total_dibayar >= @sumTot AND @sumTot > 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END
+              WHERE tagihan_id = @tid`,
+            { tid: tagihanId }
+          );
+        }
+      }
+    } catch {
+      // Lanjutkan respons simpan RME meskipun sinkronisasi billing gagal
+    }
+
     return {
       pemeriksaan_id: pemeriksaanId,
       kunjungan_id: kunjunganId,
+      tagihan_id: tagihanIdResult,
       no_dokumen: noDok,
       waktu: new Date().toISOString()
     };

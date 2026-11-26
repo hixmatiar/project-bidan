@@ -26,10 +26,19 @@ export class PublicRepository {
 
   async listLayanan(limit: number, unitId: string | null): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
-      `SELECT TOP (@limit) layanan_id, unit_id, kode, nama, kategori, satuan, kode_icd9
-         FROM [Layanan_Medis]
-        WHERE aktif = 1 AND (@unit_id IS NULL OR unit_id = @unit_id)
-        ORDER BY nama ASC`,
+      `SELECT TOP (@limit)
+              l.layanan_id, l.unit_id, l.kode, l.nama, l.kategori, l.satuan, l.kode_icd9,
+              ISNULL(hl.harga, 0) AS harga
+         FROM [Layanan_Medis] l
+         OUTER APPLY (
+           SELECT TOP 1 harga
+             FROM [Harga_Layanan] h
+            WHERE h.layanan_id = l.layanan_id
+              AND (h.berlaku_sampai IS NULL OR h.berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+            ORDER BY h.berlaku_dari DESC
+         ) hl
+        WHERE l.aktif = 1 AND (@unit_id IS NULL OR l.unit_id = @unit_id)
+        ORDER BY l.nama ASC`,
       { limit, unit_id: unitId }
     );
     return result.recordset;
@@ -138,6 +147,74 @@ export class PublicRepository {
         metode: input.metode
       }
     );
+
+    // Otomatis buat draf Kunjungan & Tagihan awal berdasarkan layanan_id yang dipilih pasien saat reservasi
+    try {
+      await db.query(
+        `DECLARE @kid UNIQUEIDENTIFIER = (
+           SELECT TOP 1 kunjungan_id FROM [Kunjungan]
+            WHERE pasien_id = @pasien_id
+              AND CAST(tgl_masuk AS DATE) = CAST(SYSDATETIME() AS DATE)
+              AND status != 'BATAL'
+            ORDER BY tgl_masuk DESC
+         );
+         IF @kid IS NULL
+         BEGIN
+           DECLARE @uid UNIQUEIDENTIFIER = (SELECT TOP 1 unit_id FROM [Jadwal_Praktik] WHERE jadwal_id = @jadwal_id);
+           IF @uid IS NULL SET @uid = (SELECT TOP 1 unit_id FROM [Unit_Pelayanan] WHERE aktif = 1);
+           DECLARE @sid UNIQUEIDENTIFIER = (SELECT TOP 1 staf_id FROM [Jadwal_Praktik] WHERE jadwal_id = @jadwal_id);
+           IF @sid IS NULL SET @sid = (SELECT TOP 1 staf_id FROM [Staf] WHERE aktif = 1);
+           DECLARE @penid UNIQUEIDENTIFIER = (SELECT TOP 1 penjamin_id FROM [Penjamin] WHERE aktif = 1 ORDER BY CASE WHEN jenis = 'MANDIRI' THEN 0 ELSE 1 END, nama ASC);
+           IF @uid IS NOT NULL AND @sid IS NOT NULL AND @penid IS NOT NULL
+           BEGIN
+             DECLARE @kOut TABLE (kunjungan_id UNIQUEIDENTIFIER);
+             INSERT INTO [Kunjungan] (pasien_id, unit_id, dpjp_staf_id, penjamin_id, jenis_kunjungan, status, tgl_masuk)
+             OUTPUT INSERTED.kunjungan_id INTO @kOut
+             VALUES (@pasien_id, @uid, @sid, @penid, 'RAWAT_JALAN', 'MENUNGGU', SYSDATETIME());
+             SELECT TOP 1 @kid = kunjungan_id FROM @kOut;
+           END
+         END
+
+         IF @kid IS NOT NULL AND @layanan_id IS NOT NULL
+         BEGIN
+           DECLARE @tid UNIQUEIDENTIFIER = (SELECT TOP 1 tagihan_id FROM [Tagihan] WHERE kunjungan_id = @kid);
+           IF @tid IS NULL
+           BEGIN
+             DECLARE @tOut TABLE (tagihan_id UNIQUEIDENTIFIER);
+             INSERT INTO [Tagihan] (kunjungan_id, total_tagihan, total_dibayar, status, tgl_terbit)
+             OUTPUT INSERTED.tagihan_id INTO @tOut
+             VALUES (@kid, 0, 0, 'BELUM_LUNAS', SYSDATETIME());
+             SELECT TOP 1 @tid = tagihan_id FROM @tOut;
+           END
+
+           IF @tid IS NOT NULL AND NOT EXISTS (SELECT 1 FROM [Tagihan_Rincian] WHERE tagihan_id = @tid AND layanan_id = @layanan_id)
+           BEGIN
+             DECLARE @hrg DECIMAL(18,2) = ISNULL((
+               SELECT TOP 1 harga FROM [Harga_Layanan]
+                WHERE layanan_id = @layanan_id
+                  AND (berlaku_sampai IS NULL OR berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+                ORDER BY berlaku_dari DESC
+             ), 0);
+             INSERT INTO [Tagihan_Rincian] (tagihan_id, layanan_id, obat_id, paket_id, qty, harga_satuan, subtotal)
+             VALUES (@tid, @layanan_id, NULL, NULL, 1, @hrg, @hrg);
+
+             DECLARE @tot DECIMAL(18,2) = ISNULL((SELECT SUM(subtotal) FROM [Tagihan_Rincian] WHERE tagihan_id = @tid), 0);
+             UPDATE [Tagihan]
+                SET total_tagihan = @tot,
+                    status = CASE WHEN total_dibayar >= @tot AND @tot > 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END
+              WHERE tagihan_id = @tid;
+           END
+         END`,
+        {
+          pasien_id: input.pasienId,
+          jadwal_id: input.jadwalId,
+          layanan_id: input.layananId
+        }
+      );
+    } catch {
+      // Lanjutkan pengembalian tiket reservasi bila auto-tagihan awal gagal
+    }
+
     return result.recordset[0];
   }
 

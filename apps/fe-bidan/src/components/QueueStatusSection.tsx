@@ -26,12 +26,12 @@ export const QueueStatusSection: React.FC<QueueStatusSectionProps> = ({ isLoadin
       const res = await apiClient.post<{ success: boolean; data: any }>('/public/pasien/cek', payload);
       
       if (res.data?.success && res.data.data?.terdaftar) {
-        setSearchResult(`Pasien terdaftar di database: ${res.data.data.nama || 'Pasien Bidan Ria'}. Silakan konfirmasi kedatangan di loket.`);
+        setSearchResult(`Pasien terdaftar: ${res.data.data.nama || 'Pasien'}. Silakan konfirmasi kedatangan di loket.`);
       } else {
-        setSearchResult(`Data "${query}" tidak ditemukan di database rekam medis.`);
+        setSearchResult(`Data "${query}" belum terdaftar.`);
       }
     } catch {
-      setSearchResult(`Hasil pengecekan database: Tidak ada antrean aktif untuk "${query}".`);
+      setSearchResult(`Tidak ada antrean aktif untuk "${query}".`);
     } finally {
       setSearching(false);
     }

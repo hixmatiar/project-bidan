@@ -309,7 +309,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                 </select>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.25rem' }}>
+              <div className="dash-grid-2" style={{ marginBottom: '1.25rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.5rem' }}>
                     Tanggal Rencana Kunjungan
@@ -372,10 +372,10 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
           {step === 2 && (
             <form onSubmit={handleSubmit}>
               <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--color-slate-900)', marginBottom: '0.5rem' }}>
-                Langkah 2: Pembuatan Akun &amp; Data Diri Pasien (Database Riil)
+                Langkah 2: Data Diri Pasien
               </h4>
               <p style={{ fontSize: '0.8125rem', color: 'var(--color-slate-500)', marginBottom: '1.25rem' }}>
-                {isAlreadyLoggedIn ? 'Anda telah login sebagai pasien terdaftar. Silakan lengkapi keluhan kunjungan.' : 'Akun ini disimpan ke tabel Akun_Pengguna untuk login panel, melihat riwayat kunjungan, dan notifikasi.'}
+                {isAlreadyLoggedIn ? 'Lengkapi keluhan kunjungan Anda di bawah ini.' : 'Buat akun pasien untuk memantau antrean dan jadwal kontrol selanjutnya.'}
               </p>
 
               <div style={{ marginBottom: '1rem' }}>
@@ -392,7 +392,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="dash-grid-2" style={{ marginBottom: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
                     Username Panel Pasien *
@@ -441,7 +441,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+              <div className="dash-grid-2" style={{ marginBottom: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
                     Email Aktif * (Notifikasi &amp; Reset OTP)
@@ -525,9 +525,9 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="btn btn-primary btn-shimmer"
+                  className="btn btn-primary"
                 >
-                  {isSubmitting ? 'Menyimpan ke Database...' : 'Konfirmasi'}
+                  {isSubmitting ? 'Memproses...' : 'Konfirmasi Reservasi'}
                 </button>
               </div>
             </form>
@@ -545,7 +545,7 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                 Reservasi Berhasil Dikonfirmasi
               </h4>
               <p style={{ fontSize: '0.875rem', color: 'var(--color-slate-600)', marginTop: '0.25rem' }}>
-                Nomor antrean dan akun pasien resmi telah tersimpan secara permanen di database SQL Server.
+                Simpan atau tunjukkan nomor antrean ini kepada petugas loket saat tiba di klinik.
               </p>
 
               {/* Digital Ticket Card */}

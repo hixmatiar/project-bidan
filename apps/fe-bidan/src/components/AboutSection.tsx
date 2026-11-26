@@ -117,7 +117,7 @@ export const AboutSection: React.FC = () => {
                         textDecoration: 'none'
                       }}
                     >
-                      🗺️ Lihat Rute di Google Maps ↗
+                      Lihat Rute di Google Maps &rarr;
                     </a>
                   </div>
                 </div>

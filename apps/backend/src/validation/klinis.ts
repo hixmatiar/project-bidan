@@ -102,8 +102,20 @@ export const rmeSimpanSchema = z.object({
   diagnosa: z.string().optional(),
   kode_icd10: z.string().optional(),
   tindakan_resep: z.string().optional(),
+  protokol_tambahan: z.string().optional(),
   catatan_edukasi: z.string().optional(),
-  tgl_kontrol_ulang: z.string().optional()
+  tgl_kontrol_ulang: z.string().optional(),
+  layanan_id: z.string().uuid().optional(),
+  resep_obat: z
+    .array(
+      z.object({
+        obat_id: z.string().uuid(),
+        qty: z.coerce.number().int().min(1).default(1),
+        harga_satuan: z.coerce.number().min(0).optional()
+      })
+    )
+    .optional()
+    .default([])
 });
 
 export const rmeListSchema = z.object({

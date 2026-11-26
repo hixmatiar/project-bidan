@@ -43,6 +43,26 @@ export class PasienService {
       jenis: body.jenis_kunjungan
     });
 
+    if (
+      kunjunganId &&
+      (body.layanan_id || body.jadwal_id) &&
+      typeof this.repository.syncWalkInReservasiDanTagihan === 'function'
+    ) {
+      const extra = await this.repository.syncWalkInReservasiDanTagihan({
+        pasienId,
+        kunjunganId,
+        layananId: body.layanan_id,
+        jadwalId: body.jadwal_id
+      });
+      if (extra.nomor_antrean !== undefined) {
+        return {
+          pasien_id: pasienId,
+          kunjungan_id: kunjunganId,
+          nomor_antrean: extra.nomor_antrean
+        } as { pasien_id: string; kunjungan_id: string | null };
+      }
+    }
+
     return { pasien_id: pasienId, kunjungan_id: kunjunganId };
   }
 

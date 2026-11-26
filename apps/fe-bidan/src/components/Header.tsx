@@ -4,9 +4,20 @@ import { KLINIK_INFO } from '../constants/klinik';
 interface HeaderProps {
   onOpenBooking?: () => void;
   onOpenLogin: (defaultRole?: 'admin' | 'bidan' | 'pasien') => void;
+  isAuthenticated?: boolean;
+  userName?: string;
+  onGoToDashboard?: () => void;
+  onLogout?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onOpenBooking: _onOpenBooking, onOpenLogin }) => {
+export const Header: React.FC<HeaderProps> = ({
+  onOpenBooking: _onOpenBooking,
+  onOpenLogin,
+  isAuthenticated = false,
+  userName = '',
+  onGoToDashboard,
+  onLogout
+}) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const toggleMobileMenu = () => {
@@ -69,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenBooking: _onOpenBooking, o
             />
             <div className="brand-text-block">
               <div className="brand-title">Praktik Mandiri Bidan</div>
-              <div className="brand-subtitle">Ria Indrasti J. S.keb</div>
+              <div className="brand-subtitle">Ria Indrasti J., S.Keb.</div>
             </div>
           </a>
 
@@ -77,25 +88,54 @@ export const Header: React.FC<HeaderProps> = ({ onOpenBooking: _onOpenBooking, o
           <ul className="nav-menu">
             <li><a href="#beranda" className="nav-link">Beranda</a></li>
             <li><a href="#layanan" className="nav-link">Layanan</a></li>
-            <li><a href="#jadwal" className="nav-link">Jadwal & Antrean</a></li>
+            <li><a href="#jadwal" className="nav-link">Jadwal &amp; Antrean</a></li>
             <li><a href="#fasilitas" className="nav-link">Fasilitas</a></li>
             <li><a href="#kontak" className="nav-link">Kontak</a></li>
           </ul>
 
-          {/* Action Buttons: 2 Sleek Buttons on Desktop */}
+          {/* Action Buttons */}
           <div className="nav-actions">
-            <button
-              type="button"
-              onClick={() => onOpenLogin('pasien')}
-              className="btn btn-primary nav-portal-btn"
-              title="Akses Portal Pasien, Bidan RME, atau Admin Klinik"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="8" r="5"/>
-                <path d="M20 21a8 8 0 1 0-16 0"/>
-              </svg>
-              <span>Masuk Portal</span>
-            </button>
+            {isAuthenticated && onGoToDashboard ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={onGoToDashboard}
+                  className="btn btn-primary nav-portal-btn"
+                  title="Kembali ke Dashboard Anda"
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                  </svg>
+                  <span>Dashboard{userName ? ` (${userName.split(' ')[0]})` : ''}</span>
+                </button>
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="btn btn-secondary nav-portal-btn"
+                    style={{ padding: '0.55rem 0.85rem', fontSize: '0.8125rem', color: '#dc2626' }}
+                  >
+                    Keluar
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onOpenLogin('pasien')}
+                className="btn btn-primary nav-portal-btn"
+                title="Akses Portal Pasien, Bidan, atau Admin"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="5"/>
+                  <path d="M20 21a8 8 0 1 0-16 0"/>
+                </svg>
+                <span>Masuk Portal</span>
+              </button>
+            )}
 
             {/* Mobile Hamburger Toggle Button */}
             <button
@@ -161,26 +201,49 @@ export const Header: React.FC<HeaderProps> = ({ onOpenBooking: _onOpenBooking, o
                 <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--color-slate-400)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
                   Akses Sistem
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
-                  <button
-                    type="button"
-                    onClick={() => { closeMobileMenu(); onOpenLogin('pasien'); }}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.65rem 0.5rem', fontSize: '0.8125rem', width: '100%' }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
-                    <span>Portal Pasien</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { closeMobileMenu(); onOpenLogin('admin'); }}
-                    className="btn btn-secondary"
-                    style={{ padding: '0.65rem 0.5rem', fontSize: '0.8125rem', width: '100%' }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <span>Bidan / Admin</span>
-                  </button>
-                </div>
+                {isAuthenticated && onGoToDashboard ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => { closeMobileMenu(); onGoToDashboard(); }}
+                      className="btn btn-primary"
+                      style={{ padding: '0.7rem', fontSize: '0.875rem', width: '100%' }}
+                    >
+                      Kembali ke Dashboard
+                    </button>
+                    {onLogout && (
+                      <button
+                        type="button"
+                        onClick={() => { closeMobileMenu(); onLogout(); }}
+                        className="btn btn-secondary"
+                        style={{ padding: '0.65rem', fontSize: '0.8125rem', width: '100%', color: '#dc2626' }}
+                      >
+                        Keluar Akun
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <button
+                      type="button"
+                      onClick={() => { closeMobileMenu(); onOpenLogin('pasien'); }}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.65rem 0.5rem', fontSize: '0.8125rem', width: '100%' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+                      <span>Portal Pasien</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { closeMobileMenu(); onOpenLogin('admin'); }}
+                      className="btn btn-secondary"
+                      style={{ padding: '0.65rem 0.5rem', fontSize: '0.8125rem', width: '100%' }}
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      <span>Bidan / Admin</span>
+                    </button>
+                  </div>
+                )}
 
                 <a
                   href={`tel:${KLINIK_INFO.telepon}`}

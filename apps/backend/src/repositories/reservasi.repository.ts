@@ -6,13 +6,17 @@ export class ReservasiRepository {
   async list(limit: number, tanggal: string | null): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
       `SELECT TOP (@limit) r.reservasi_id, r.pasien_id, p.nama AS nama_pasien, p.nik AS nik_pasien, r.jadwal_id,
+              r.layanan_id, l.nama AS nama_layanan,
               r.nomor_antrean, CONVERT(VARCHAR(5), r.estimasi_jam, 108) AS estimasi_jam,
+              CONVERT(VARCHAR(5), j.jam_mulai, 108) AS jam_mulai,
+              CONVERT(VARCHAR(5), j.jam_selesai, 108) AS jam_selesai,
               r.status, r.metode_daftar, j.tanggal
          FROM [Reservasi] r
          JOIN [Pasien] p ON p.pasien_id = r.pasien_id
          JOIN [Jadwal_Praktik] j ON j.jadwal_id = r.jadwal_id
+         LEFT JOIN [Layanan_Medis] l ON l.layanan_id = r.layanan_id
         WHERE @tanggal IS NULL OR CAST(j.tanggal AS VARCHAR(10)) = @tanggal
-        ORDER BY j.tanggal ASC, r.nomor_antrean ASC`,
+        ORDER BY j.tanggal DESC, r.nomor_antrean ASC`,
       { limit, tanggal }
     );
     return result.recordset;
@@ -61,7 +65,77 @@ export class ReservasiRepository {
       `UPDATE [Reservasi] SET status = @status OUTPUT INSERTED.* WHERE reservasi_id = @id`,
       { id, status }
     );
-    return result.recordset[0];
+    const updated = result.recordset[0];
+    if (updated && status === 'SELESAI') {
+      try {
+        await db.query(
+          `DECLARE @pid UNIQUEIDENTIFIER = (SELECT TOP 1 pasien_id FROM [Reservasi] WHERE reservasi_id = @id);
+           DECLARE @lid UNIQUEIDENTIFIER = (SELECT TOP 1 layanan_id FROM [Reservasi] WHERE reservasi_id = @id);
+           DECLARE @jid UNIQUEIDENTIFIER = (SELECT TOP 1 jadwal_id FROM [Reservasi] WHERE reservasi_id = @id);
+           IF @pid IS NOT NULL
+           BEGIN
+             DECLARE @kid UNIQUEIDENTIFIER = (
+               SELECT TOP 1 kunjungan_id FROM [Kunjungan]
+                WHERE pasien_id = @pid AND status != 'BATAL'
+                ORDER BY tgl_masuk DESC
+             );
+             IF @kid IS NULL
+             BEGIN
+               DECLARE @uid UNIQUEIDENTIFIER = (SELECT TOP 1 unit_id FROM [Jadwal_Praktik] WHERE jadwal_id = @jid);
+               IF @uid IS NULL SET @uid = (SELECT TOP 1 unit_id FROM [Unit_Pelayanan] WHERE aktif = 1);
+               DECLARE @sid UNIQUEIDENTIFIER = (SELECT TOP 1 staf_id FROM [Jadwal_Praktik] WHERE jadwal_id = @jid);
+               IF @sid IS NULL SET @sid = (SELECT TOP 1 staf_id FROM [Staf] WHERE aktif = 1);
+               DECLARE @penid UNIQUEIDENTIFIER = (SELECT TOP 1 penjamin_id FROM [Penjamin] WHERE aktif = 1 ORDER BY CASE WHEN jenis = 'MANDIRI' THEN 0 ELSE 1 END, nama ASC);
+               IF @uid IS NOT NULL AND @sid IS NOT NULL AND @penid IS NOT NULL
+               BEGIN
+                 DECLARE @kOut TABLE (kunjungan_id UNIQUEIDENTIFIER);
+                 INSERT INTO [Kunjungan] (pasien_id, unit_id, dpjp_staf_id, penjamin_id, jenis_kunjungan, status, tgl_masuk)
+                 OUTPUT INSERTED.kunjungan_id INTO @kOut
+                 VALUES (@pid, @uid, @sid, @penid, 'RAWAT_JALAN', 'SELESAI', SYSDATETIME());
+                 SELECT TOP 1 @kid = kunjungan_id FROM @kOut;
+               END
+             END
+             ELSE
+             BEGIN
+               UPDATE [Kunjungan] SET status = 'SELESAI' WHERE kunjungan_id = @kid;
+             END
+
+             IF @kid IS NOT NULL AND @lid IS NOT NULL
+             BEGIN
+               DECLARE @tid UNIQUEIDENTIFIER = (SELECT TOP 1 tagihan_id FROM [Tagihan] WHERE kunjungan_id = @kid);
+               IF @tid IS NULL
+               BEGIN
+                 DECLARE @tOut TABLE (tagihan_id UNIQUEIDENTIFIER);
+                 INSERT INTO [Tagihan] (kunjungan_id, total_tagihan, total_dibayar, status, tgl_terbit)
+                 OUTPUT INSERTED.tagihan_id INTO @tOut
+                 VALUES (@kid, 0, 0, 'BELUM_LUNAS', SYSDATETIME());
+                 SELECT TOP 1 @tid = tagihan_id FROM @tOut;
+               END
+               IF @tid IS NOT NULL AND NOT EXISTS (SELECT 1 FROM [Tagihan_Rincian] WHERE tagihan_id = @tid AND layanan_id = @lid)
+               BEGIN
+                 DECLARE @hrg DECIMAL(18,2) = ISNULL((
+                   SELECT TOP 1 harga FROM [Harga_Layanan]
+                    WHERE layanan_id = @lid
+                      AND (berlaku_sampai IS NULL OR berlaku_sampai >= CAST(SYSDATETIME() AS DATE))
+                    ORDER BY berlaku_dari DESC
+                 ), 0);
+                 INSERT INTO [Tagihan_Rincian] (tagihan_id, layanan_id, obat_id, paket_id, qty, harga_satuan, subtotal)
+                 VALUES (@tid, @lid, NULL, NULL, 1, @hrg, @hrg);
+                 DECLARE @tot DECIMAL(18,2) = ISNULL((SELECT SUM(subtotal) FROM [Tagihan_Rincian] WHERE tagihan_id = @tid), 0);
+                 UPDATE [Tagihan]
+                    SET total_tagihan = @tot,
+                        status = CASE WHEN total_dibayar >= @tot AND @tot > 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END
+                  WHERE tagihan_id = @tid;
+               END
+             END
+           END`,
+          { id }
+        );
+      } catch {
+        // Abaikan jika sinkronisasi tagihan otomatis gagal
+      }
+    }
+    return updated;
   }
 
   async listJadwal(limit: number, tanggal: string | null): Promise<Record<string, unknown>[]> {

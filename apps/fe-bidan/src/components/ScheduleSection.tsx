@@ -126,10 +126,10 @@ export const ScheduleSection: React.FC<ScheduleSectionProps> = ({ onOpenBooking,
         ) : sesiList.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#faf8fc', borderRadius: '16px', border: '1px dashed var(--border-medium)', color: 'var(--color-slate-500)' }}>
             <p style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--color-slate-700)', marginBottom: '0.25rem' }}>
-              Jadwal Sesi Belum Diterbitkan di Database
+              Jadwal Sesi Belum Diterbitkan
             </p>
             <p style={{ fontSize: '0.875rem' }}>
-              Hubungi langsung bidan melalui WhatsApp/Telepon untuk konfirmasi ketersediaan jadwal hari ini.
+              Hubungi langsung bidan melalui WhatsApp atau telepon untuk konfirmasi jadwal hari ini.
             </p>
           </div>
         ) : (

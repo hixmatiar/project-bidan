@@ -21,6 +21,8 @@ export const walkInSchema = z.object({
   unit_id: z.string().uuid(),
   dpjp_staf_id: z.string().uuid().optional(),
   penjamin_id: z.string().uuid().optional(),
+  layanan_id: z.string().uuid().optional(),
+  jadwal_id: z.string().uuid().optional(),
   jenis_kunjungan: z.string().max(30).default('RAWAT_JALAN')
 });
 

@@ -25,7 +25,7 @@ export const Footer: React.FC = () => {
                   Praktik Mandiri Bidan
                 </div>
                 <div style={{ fontSize: '0.85rem', color: '#fcd34d', fontWeight: 700 }}>
-                  Ria Indrasti J. S.keb
+                  Ria Indrasti J., S.Keb.
                 </div>
               </div>
             </div>
@@ -116,7 +116,7 @@ export const Footer: React.FC = () => {
                       border: '1px solid rgba(252, 211, 77, 0.3)'
                     }}
                   >
-                    📍 Buka di Google Maps ↗
+                    Buka di Google Maps &rarr;
                   </a>
                 </div>
               </div>
@@ -140,7 +140,7 @@ export const Footer: React.FC = () => {
         {/* Footer Bottom Bar */}
         <div className="footer-bottom">
           <div>
-            &copy; {new Date().getFullYear()} Praktik Mandiri Bidan Ria Indrasti J. S.keb. Hak Cipta Dilindungi.
+            &copy; {new Date().getFullYear()} Praktik Mandiri Bidan Ria Indrasti J., S.Keb. Hak Cipta Dilindungi.
           </div>
           <div style={{ display: 'flex', gap: '1.5rem' }}>
             <span>Kepatuhan UU PDP No. 27/2022 (Perlindungan Data Pribadi)</span>

@@ -79,7 +79,7 @@ export const TestimonialSection: React.FC<TestimonialSectionProps> = ({ isLoadin
         ) : testimonies.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3rem 1rem', background: '#ffffff', borderRadius: '16px', border: '1px dashed var(--border-medium)', color: 'var(--color-slate-500)' }}>
             <p style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-slate-700)', marginBottom: '0.25rem' }}>
-              Belum Ada Ulasan Publik di Database
+              Belum Ada Ulasan Pasien
             </p>
             <p style={{ fontSize: '0.875rem' }}>
               Ulasan kepuasan asuhan dari pasien akan ditampilkan di sini setelah diverifikasi.

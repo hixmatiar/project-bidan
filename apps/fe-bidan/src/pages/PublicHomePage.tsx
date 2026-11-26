@@ -15,9 +15,19 @@ import { LayananItem } from '../api/types';
 
 interface PublicHomePageProps {
   onOpenLogin: (defaultRole?: 'admin' | 'bidan' | 'pasien') => void;
+  isAuthenticated?: boolean;
+  userName?: string;
+  onGoToDashboard?: () => void;
+  onLogout?: () => void;
 }
 
-export const PublicHomePage: React.FC<PublicHomePageProps> = ({ onOpenLogin }) => {
+export const PublicHomePage: React.FC<PublicHomePageProps> = ({
+  onOpenLogin,
+  isAuthenticated = false,
+  userName = '',
+  onGoToDashboard,
+  onLogout
+}) => {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [selectedLayanan, setSelectedLayanan] = useState<LayananItem | null>(null);
   
@@ -46,6 +56,10 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({ onOpenLogin }) =
       <Header
         onOpenBooking={handleOpenBooking}
         onOpenLogin={onOpenLogin}
+        isAuthenticated={isAuthenticated}
+        userName={userName}
+        onGoToDashboard={onGoToDashboard}
+        onLogout={onLogout}
       />
 
       <main>
@@ -84,6 +98,8 @@ export const PublicHomePage: React.FC<PublicHomePageProps> = ({ onOpenLogin }) =
       <MobileBottomNav
         onOpenBooking={handleOpenBooking}
         onOpenLogin={onOpenLogin}
+        isAuthenticated={isAuthenticated}
+        onGoToDashboard={onGoToDashboard}
       />
 
       <ReservationModal

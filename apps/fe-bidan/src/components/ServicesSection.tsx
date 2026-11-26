@@ -195,10 +195,10 @@ export const ServicesSection: React.FC<ServicesSectionProps> = ({ onSelectServic
         ) : layananList.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '3.5rem 1rem', background: '#ffffff', borderRadius: '16px', border: '1px dashed var(--border-medium)', color: 'var(--color-slate-500)' }}>
             <p style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-slate-800)', marginBottom: '0.5rem' }}>
-              Belum Ada Layanan di Database
+              Daftar Layanan Belum Tersedia
             </p>
             <p style={{ fontSize: '0.875rem', maxWidth: '480px', margin: '0 auto' }}>
-              Daftar layanan medis akan muncul otomatis setelah data di tabel Layanan_Medis diaktifkan oleh admin.
+              Silakan hubungi pihak klinik untuk informasi jenis layanan pemeriksaan hari ini.
             </p>
           </div>
         ) : (
