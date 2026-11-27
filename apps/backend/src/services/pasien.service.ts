@@ -18,8 +18,21 @@ export class PasienService {
 
   async walkIn(body: WalkInBody): Promise<{ pasien_id: string; kunjungan_id: string | null }> {
     let pasienId = await this.repository.findByNik(body.nik);
+    if (body.tanpa_kunjungan) {
+      if (pasienId) {
+        throw ApiError.conflict('NIK pasien sudah terdaftar di database');
+      }
+      pasienId = await this.repository.createPasien(body);
+      if (!pasienId) {
+        throw ApiError.internal('Gagal membuat data pasien');
+      }
+      return { pasien_id: pasienId, kunjungan_id: null };
+    }
+
     if (!pasienId) {
       pasienId = await this.repository.createPasien(body);
+    } else if (typeof this.repository.syncPasienIdentitas === 'function') {
+      await this.repository.syncPasienIdentitas(pasienId, body);
     }
     if (!pasienId) {
       throw ApiError.internal('Gagal membuat data pasien');
@@ -37,7 +50,7 @@ export class PasienService {
 
     const kunjunganId = await this.repository.createKunjungan({
       pasienId,
-      unitId: body.unit_id,
+      unitId: body.unit_id as string,
       dpjpId: dpjp,
       penjaminId: penjamin,
       jenis: body.jenis_kunjungan

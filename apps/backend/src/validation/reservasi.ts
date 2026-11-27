@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from './common';
+import { dateSchema, uuidSchema } from './common';
 
 export const reservasiListSchema = z.object({
   tanggal: dateSchema.optional(),
@@ -7,7 +7,7 @@ export const reservasiListSchema = z.object({
 });
 
 export const jadwalUlangSchema = z.object({
-  jadwal_id: z.string().uuid(),
+  jadwal_id: uuidSchema,
   nomor_antrean: z.number().int().min(1).optional(),
   estimasi_jam: z.string().max(20).optional()
 });
@@ -17,9 +17,9 @@ export const statusSchema = z.object({
 });
 
 export const jadwalSchema = z.object({
-  staf_id: z.string().uuid().optional(),
-  unit_id: z.string().uuid().optional(),
-  ruangan_id: z.string().uuid().optional(),
+  staf_id: uuidSchema.optional(),
+  unit_id: uuidSchema.optional(),
+  ruangan_id: uuidSchema.optional(),
   tanggal: dateSchema,
   jam_mulai: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format jam tidak valid'),
   jam_selesai: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/, 'Format jam tidak valid'),

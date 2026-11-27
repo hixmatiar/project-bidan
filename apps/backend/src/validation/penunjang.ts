@@ -1,19 +1,20 @@
 import { z } from 'zod';
+import { uuidSchema } from './common';
 
 export const orderSchema = z.object({
   jenis: z.enum(['LAB', 'RADIOLOGI']),
-  layanan_ids: z.array(z.string().uuid()).min(1)
+  layanan_ids: z.array(uuidSchema).min(1)
 });
 
 export const hasilLabSchema = z.object({
-  order_detail_id: z.string().uuid(),
-  parameter_id: z.string().uuid(),
+  order_detail_id: uuidSchema,
+  parameter_id: uuidSchema,
   nilai: z.string().min(1).max(100),
   flag: z.string().max(20).optional()
 });
 
 export const hasilRadSchema = z.object({
-  order_detail_id: z.string().uuid(),
+  order_detail_id: uuidSchema,
   temuan: z.string().min(1).max(4000),
   kesan: z.string().min(1).max(2000),
   berkas_gambar: z.string().max(255).optional()

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { uuidSchema } from './common';
 
 export const kontenListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -7,7 +8,7 @@ export const kontenListSchema = z.object({
 
 export const layananListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  unit_id: z.string().uuid().optional()
+  unit_id: uuidSchema.optional()
 });
 
 export const jadwalListSchema = layananListSchema;
@@ -22,10 +23,10 @@ export const cekPasienSchema = z
   });
 
 export const reservasiSchema = z.object({
-  pasien_id: z.string().uuid().optional(),
-  jadwal_id: z.string().uuid().optional(),
-  sesi_id: z.string().uuid().optional(),
-  layanan_id: z.string().uuid(),
+  pasien_id: uuidSchema.optional(),
+  jadwal_id: uuidSchema.optional(),
+  sesi_id: uuidSchema.optional(),
+  layanan_id: uuidSchema,
   metode_daftar: z.enum(['ONLINE', 'WALK_IN', 'TELEPON']).default('ONLINE'),
   nik: z.string().optional(),
   nama: z.string().optional(),

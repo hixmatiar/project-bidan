@@ -85,12 +85,16 @@ export class KeuanganRepository {
       subtotal?: number;
     }>
   ): Promise<number> {
-    let total = 0;
     for (const item of items) {
+      const hasLay = Boolean(item.layanan_id);
+      const hasObt = Boolean(item.obat_id);
+      const hasPkt = Boolean(item.paket_id);
+      if (Number(hasLay) + Number(hasObt) + Number(hasPkt) !== 1) {
+        continue;
+      }
       const qty = item.qty && item.qty > 0 ? Number(item.qty) : 1;
       const harga = item.harga_satuan ? Number(item.harga_satuan) : 0;
       const subtotal = item.subtotal !== undefined ? Number(item.subtotal) : qty * harga;
-      total += subtotal;
       await db.query(
         `INSERT INTO [Tagihan_Rincian] (tagihan_id, layanan_id, obat_id, paket_id, qty, harga_satuan, subtotal)
          VALUES (@tagihan_id, @layanan_id, @obat_id, @paket_id, @qty, @harga_satuan, @subtotal)`,
@@ -105,14 +109,16 @@ export class KeuanganRepository {
         }
       );
     }
-    await db.query(
-      `UPDATE [Tagihan]
-          SET total_tagihan = @total,
-              status = CASE WHEN total_dibayar >= @total AND @total > 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END
+    const updatedRes = await db.query<{ total_tagihan: number }>(
+      `DECLARE @sumTot DECIMAL(18,2) = ISNULL((SELECT SUM(subtotal) FROM [Tagihan_Rincian] WHERE tagihan_id = @id), 0);
+       UPDATE [Tagihan]
+          SET total_tagihan = CASE WHEN @sumTot < total_dibayar THEN total_dibayar ELSE @sumTot END,
+              status = CASE WHEN total_dibayar >= @sumTot AND @sumTot > 0 THEN 'LUNAS' ELSE 'BELUM_LUNAS' END
+       OUTPUT INSERTED.total_tagihan
         WHERE tagihan_id = @id`,
-      { id: tagihanId, total }
+      { id: tagihanId }
     );
-    return total;
+    return Number(updatedRes.recordset[0]?.total_tagihan ?? 0);
   }
 
   async findTagihanIdByKunjungan(kunjunganId: string): Promise<string | null> {

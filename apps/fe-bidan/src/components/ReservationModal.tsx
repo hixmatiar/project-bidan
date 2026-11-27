@@ -378,18 +378,34 @@ export const ReservationModal: React.FC<ReservationModalProps> = ({
                 {isAlreadyLoggedIn ? 'Lengkapi keluhan kunjungan Anda di bawah ini.' : 'Buat akun pasien untuk memantau antrean dan jadwal kontrol selanjutnya.'}
               </p>
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
-                  Nama Lengkap Pasien *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Ratna Dewi"
-                  value={formData.nama}
-                  onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
-                  style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '0.9375rem', outline: 'none' }}
-                />
+              <div className="dash-grid-2" style={{ marginBottom: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
+                    Nama Lengkap Pasien *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Ratna Dewi"
+                    value={formData.nama}
+                    onChange={(e) => setFormData({ ...formData, nama: e.target.value })}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '0.9375rem', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: 'var(--color-slate-700)', marginBottom: '0.4rem' }}>
+                    Jenis Kelamin *
+                  </label>
+                  <select
+                    required
+                    value={formData.jenis_kelamin}
+                    onChange={(e) => setFormData({ ...formData, jenis_kelamin: e.target.value as 'P' | 'L' })}
+                    style={{ width: '100%', padding: '0.75rem', borderRadius: '10px', border: '1px solid var(--border-medium)', fontSize: '0.9375rem', outline: 'none', background: '#ffffff' }}
+                  >
+                    <option value="P">Perempuan (P)</option>
+                    <option value="L">Laki-laki (L)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="dash-grid-2" style={{ marginBottom: '1rem' }}>

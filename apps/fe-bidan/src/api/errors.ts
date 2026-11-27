@@ -25,8 +25,11 @@ const translateTechnicalError = (msg: string): string => {
   if (lower.includes('jadwal_id') || lower.includes('sesi_id') || lower.includes('jadwal slot')) {
     return 'Tolong pilih sesi jadwal terlebih dahulu.';
   }
-  if (lower.includes('pasien_id') || (lower.includes('nik') && lower.includes('wajib'))) {
-    return 'Tolong masukkan NIK atau lengkapi data pasien terlebih dahulu.';
+  if (lower.includes('pasien_id') && (lower.includes('format id') || lower.includes('uuid'))) {
+    return 'Identitas ID pasien tidak sesuai format. Silakan pilih ulang pasien dari daftar.';
+  }
+  if (lower.includes('nik') && lower.includes('wajib')) {
+    return 'Nomor Induk Kependudukan (NIK) pasien wajib diisi.';
   }
   if (lower.includes('nik') && (lower.includes('16 digit') || lower.includes('regex') || lower.includes('invalid'))) {
     return 'Nomor Induk Kependudukan (NIK) harus 16 digit angka.';
@@ -37,8 +40,14 @@ const translateTechnicalError = (msg: string): string => {
   if (lower.includes('jadwal tidak tersedia')) {
     return 'Jadwal sesi praktik yang dipilih tidak tersedia atau sudah ditutup. Tolong pilih sesi jadwal lain.';
   }
-  if (lower.includes('layanan_id')) {
+  if (lower.includes('layanan_id') && (lower.includes('required') || lower.includes('wajib'))) {
     return 'Tolong pilih jenis layanan pemeriksaan terlebih dahulu.';
+  }
+  if (lower.includes('err-inv-03')) {
+    return 'Item obat atau alkes dengan nama dan kategori tersebut sudah terdaftar.';
+  }
+  if (lower.includes('err-inv-02')) {
+    return 'Data item obat atau alkes tidak ditemukan di database.';
   }
   if (lower.includes('err-fin-01')) {
     return 'Jumlah pembayaran melebihi sisa tagihan.';

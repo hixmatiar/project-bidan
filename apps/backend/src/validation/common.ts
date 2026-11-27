@@ -3,7 +3,8 @@ import ApiError from '../errors/ApiError';
 
 export const emptyBodySchema = z.object({});
 
-export const uuidSchema = z.string().uuid('Format ID tidak valid');
+export const GUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+export const uuidSchema = z.string().trim().regex(GUID_REGEX, 'Format ID tidak valid');
 export const idParams = z.object({ id: uuidSchema });
 
 export const paginationSchema = z.object({

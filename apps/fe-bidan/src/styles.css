@@ -1076,21 +1076,22 @@ button {
 /*RME 2-Panel Clinical Workspace*/
 .rme-workspace {
   display: grid;
-  grid-template-columns: 310px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
   overflow: hidden;
-  min-height: 620px;
+  min-height: 660px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
 }
 
 .rme-queue-panel {
-  background: #f9fafb;
-  border-right: 1px solid #e5e7eb;
+  background: #f8fafc;
+  border-right: 1px solid #e2e8f0;
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  max-height: 760px;
+  max-height: 840px;
 }
 
 .rme-queue-list {
@@ -1100,6 +1101,7 @@ button {
   flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.75rem;
+  padding-right: 2px;
 }
 
 .rme-patient-card {
@@ -1108,26 +1110,70 @@ button {
   padding: 0.75rem 0.85rem;
   border-radius: 10px;
   background: #ffffff;
-  border: 1px solid #e5e7eb;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid #e2e8f0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .rme-patient-card:hover {
   border-color: #cbd5e1;
+  background: #fcfcfd;
 }
 
 .rme-patient-card.selected {
   border: 2px solid var(--color-primary);
-  background: #ffffff;
-  box-shadow: 0 2px 6px rgba(88, 32, 126, 0.08);
+  background: #faf5ff;
+  box-shadow: 0 3px 10px rgba(88, 32, 126, 0.08);
 }
 
 .rme-form-panel {
-  padding: 1.5rem;
+  padding: 1.35rem 1.5rem;
   background: #ffffff;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 1rem;
+}
+
+.rme-identity-card {
+  background: linear-gradient(180deg, #fcfaff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.rme-section-box {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 11px;
+  padding: 1rem 1.1rem;
+}
+
+.rme-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.rme-soap-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
 }
 
 .rme-vital-strip {
@@ -1136,7 +1182,7 @@ button {
   gap: 0.65rem;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1180px) {
   .rme-vital-strip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -1149,8 +1195,8 @@ button {
 
   .rme-queue-panel {
     border-right: none;
-    border-bottom: 1px solid #e5e7eb;
-    max-height: 280px;
+    border-bottom: 1px solid #e2e8f0;
+    max-height: 300px;
   }
 }
 
@@ -1160,7 +1206,7 @@ button {
   }
 
   .rme-form-panel {
-    padding: 1.15rem;
+    padding: 1rem;
   }
 }
 
@@ -1179,6 +1225,128 @@ button {
   position: sticky;
   top: 0;
   z-index: 1040;
+  transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: visible;
+}
+
+/* Floating Collapse/Expand Toggle on Right Border Edge (Chrome/Brave Vertical Tabs Style) */
+.dash-sidebar-edge-toggle {
+  position: absolute;
+  right: -13px;
+  top: 96px;
+  width: 26px;
+  height: 26px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  z-index: 1065;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
+}
+
+.dash-sidebar-edge-toggle:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-subtle);
+  transform: scale(1.08);
+}
+
+.dash-sidebar-floating-tooltip {
+  position: fixed;
+  left: 82px;
+  transform: translateY(-50%);
+  background: #0f172a;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 600;
+  padding: 0.36rem 0.68rem;
+  border-radius: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1400;
+  box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.28);
+}
+
+.dash-sidebar-floating-tooltip::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  width: 8px;
+  height: 8px;
+  background: #0f172a;
+}
+
+@media (min-width: 1025px) {
+  .dash-sidebar.collapsed {
+    width: 72px;
+  }
+
+  .dash-sidebar.collapsed .dash-sidebar-header {
+    justify-content: center;
+    padding: 1.15rem 0.5rem;
+  }
+
+  .dash-sidebar.collapsed .dash-brand-meta {
+    display: none;
+  }
+
+  .dash-sidebar.collapsed .dash-sidebar-body {
+    padding: 0.85rem 0.55rem 1.25rem;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-label {
+    display: none;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-section {
+    padding-bottom: 0.65rem;
+    margin-bottom: 0.65rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-section:last-child {
+    border-bottom: none;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-item {
+    justify-content: center;
+    padding: 0.65rem 0;
+    position: relative;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-item-left {
+    justify-content: center;
+    gap: 0;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-item-left > span {
+    display: none;
+  }
+
+  .dash-sidebar.collapsed .dash-nav-badge {
+    position: absolute;
+    top: 3px;
+    right: 6px;
+    font-size: 0.6rem;
+    padding: 0.05rem 0.32rem;
+    min-width: 16px;
+    text-align: center;
+  }
+
+  .dash-sidebar.collapsed .dash-sidebar-footer {
+    padding: 0.75rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.45rem;
+  }
 }
 
 .dash-sidebar-header {
@@ -1429,6 +1597,11 @@ button {
 }
 
 @media (max-width: 1024px) {
+  .dash-sidebar-edge-toggle,
+  .dash-sidebar-floating-tooltip {
+    display: none !important;
+  }
+
   .dash-sidebar {
     position: fixed;
     left: 0;

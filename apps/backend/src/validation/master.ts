@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { uuidSchema } from './common';
 import type { MasterConfig } from '../repositories/master.repository';
 import type { Profile } from '../types';
 import { ADMIN_LOKAL, P, SEMUA_STAF } from '../auth/profiles';
@@ -17,7 +18,7 @@ export interface MasterDefinition {
   update?: Profile[];
 }
 
-const uuid = (): z.ZodType => z.string().uuid('Format ID tidak valid');
+const uuid = (): z.ZodType => uuidSchema;
 const text = (max = 255): z.ZodType => z.string().min(1).max(max);
 const optionalText = (max = 255): z.ZodType => z.string().max(max);
 const integer = (): z.ZodType => z.number().int();

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from './common';
+import { dateSchema, uuidSchema } from './common';
 
 export const klinisLimitSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional()
@@ -12,12 +12,12 @@ export const diagnosaSchema = z.object({
 });
 
 export const kunjunganSchema = z.object({
-  unit_id: z.string().uuid(),
-  dpjp_staf_id: z.string().uuid().optional(),
-  penjamin_id: z.string().uuid().optional(),
+  unit_id: uuidSchema,
+  dpjp_staf_id: uuidSchema.optional(),
+  penjamin_id: uuidSchema.optional(),
   jenis_kunjungan: z.string().max(30).default('RAWAT_JALAN'),
   diagnosa: z.array(diagnosaSchema).default([]),
-  layanan_ids: z.array(z.string().uuid()).default([])
+  layanan_ids: z.array(uuidSchema).default([])
 });
 
 export const catatanSchema = z.object({
@@ -45,8 +45,8 @@ export const ancSchema = z.object({
 });
 
 export const persalinanSchema = z.object({
-  kunjungan_id: z.string().uuid(),
-  penolong_staf_id: z.string().uuid().optional(),
+  kunjungan_id: uuidSchema,
+  penolong_staf_id: uuidSchema.optional(),
   waktu_persalinan: z.string().max(40).optional(),
   jenis_persalinan: z.string().min(1).max(30),
   komplikasi: z.string().max(255).optional(),
@@ -62,29 +62,29 @@ export const klinisBayiSchema = z.object({
   nama: z.string().min(1).max(100),
   jenis_kelamin: z.enum(['LAKI_LAKI', 'PEREMPUAN']),
   tgl_lahir: dateSchema,
-  ibu_pasien_id: z.string().uuid()
+  ibu_pasien_id: uuidSchema
 });
 
 export const imunisasiSchema = z.object({
-  vaksin_id: z.string().uuid(),
-  kunjungan_id: z.string().uuid(),
-  batch_id: z.string().uuid().optional(),
+  vaksin_id: uuidSchema,
+  kunjungan_id: uuidSchema,
+  batch_id: uuidSchema.optional(),
   dosis_ke: z.number().int().min(1).max(10),
   tanggal: dateSchema
 });
 
 export const kbSchema = z.object({
-  metode_id: z.string().uuid(),
-  kunjungan_id: z.string().uuid(),
+  metode_id: uuidSchema,
+  kunjungan_id: uuidSchema,
   tanggal: dateSchema,
   kontrol_berikutnya: dateSchema.optional(),
   efek_samping: z.string().max(255).optional()
 });
 
 export const rmeSimpanSchema = z.object({
-  pasien_id: z.string().uuid(),
-  kunjungan_id: z.string().uuid().optional(),
-  staf_id: z.string().uuid().optional(),
+  pasien_id: uuidSchema,
+  kunjungan_id: uuidSchema.optional(),
+  staf_id: uuidSchema.optional(),
   keluhan: z.string().min(1, 'Keluhan wajib diisi'),
   pemeriksaan_fisik: z.string().optional().default(''),
   asesmen: z.string().optional().default(''),
@@ -105,11 +105,11 @@ export const rmeSimpanSchema = z.object({
   protokol_tambahan: z.string().optional(),
   catatan_edukasi: z.string().optional(),
   tgl_kontrol_ulang: z.string().optional(),
-  layanan_id: z.string().uuid().optional(),
+  layanan_id: uuidSchema.optional(),
   resep_obat: z
     .array(
       z.object({
-        obat_id: z.string().uuid(),
+        obat_id: uuidSchema,
         qty: z.coerce.number().int().min(1).default(1),
         harga_satuan: z.coerce.number().min(0).optional()
       })
@@ -120,7 +120,7 @@ export const rmeSimpanSchema = z.object({
 
 export const rmeListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
-  pasien_id: z.string().uuid().optional(),
+  pasien_id: uuidSchema.optional(),
   nik: z.string().optional()
 });
 

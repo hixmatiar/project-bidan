@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from './common';
+import { dateSchema, uuidSchema } from './common';
 
 export const akunSchema = z.object({
   username: z.string().min(3).max(50),
@@ -9,7 +9,7 @@ export const akunSchema = z.object({
 });
 
 export const pemeliharaanSchema = z.object({
-  teknisi_staf_id: z.string().uuid(),
+  teknisi_staf_id: uuidSchema,
   jenis: z.string().min(1).max(50),
   tanggal: dateSchema,
   biaya: z.number().min(0).default(0),

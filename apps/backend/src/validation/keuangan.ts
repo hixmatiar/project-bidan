@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from './common';
+import { dateSchema, uuidSchema } from './common';
 
 export const tagihanListSchema = z.object({
   status: z.string().max(20).optional(),
@@ -12,14 +12,14 @@ export const bayarSchema = z.object({
   jumlah: z.number().positive(),
   metode: z.enum(['TUNAI', 'TRANSFER', 'KARTU', 'QRIS', 'BPJS']),
   jenis: z.enum(['UANG_MUKA', 'CICILAN', 'PELUNASAN']).default('PELUNASAN'),
-  penjamin_id: z.string().uuid().optional(),
-  kasir_staf_id: z.string().uuid().optional()
+  penjamin_id: uuidSchema.optional(),
+  kasir_staf_id: uuidSchema.optional()
 });
 
 export const hargaSchema = z.object({
   harga: z.number().positive(),
-  kelas_id: z.string().uuid().optional(),
-  penjamin_id: z.string().uuid().optional(),
+  kelas_id: uuidSchema.optional(),
+  penjamin_id: uuidSchema.optional(),
   berlaku_dari: dateSchema.optional(),
   alasan: z.string().trim().min(3, 'Alasan minimal 3 karakter').max(255)
 });
@@ -29,7 +29,7 @@ export const refParams = z.object({
     .string()
     .transform((value) => value.toUpperCase())
     .pipe(z.enum(['LAYANAN', 'OBAT'], { message: 'ref_tipe harus LAYANAN atau OBAT' })),
-  ref_id: z.string().uuid('Format ID tidak valid')
+  ref_id: uuidSchema
 });
 
 export type TagihanListInput = z.infer<typeof tagihanListSchema>;

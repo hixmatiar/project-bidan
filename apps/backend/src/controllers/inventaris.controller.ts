@@ -19,7 +19,7 @@ export const list = asyncHandler(async (req, res) => {
 
 export const createObat = asyncHandler(async (req, res) => {
   const body = req.validated?.body as ObatBody;
-  return respond.created(res, await service.createObat(body));
+  return respond.created(res, await service.createObat(body, req.auth?.stafId ?? null));
 });
 
 export const updateObat = asyncHandler(async (req, res) => {

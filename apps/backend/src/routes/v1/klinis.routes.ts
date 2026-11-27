@@ -4,7 +4,7 @@ import { requireProfiles } from '../../middleware/rbac';
 import { validate } from './_validate';
 import { defineRoute } from './_registry';
 import { idParams } from '../../validation/common';
-import { DOKTER, KLINIS } from '../../auth/profiles';
+import { DOKTER, KLINIS, P } from '../../auth/profiles';
 import {
   ancSchema,
   catatanSchema,
@@ -217,17 +217,19 @@ defineRoute(
   createKb
 );
 
+const RME_AKSES = [...KLINIS, P.ADMIN_LOKAL];
+
 defineRoute(
   router,
   {
     method: 'post',
     path: '/klinis/rme/simpan',
     auth: true,
-    profiles: KLINIS,
+    profiles: RME_AKSES,
     schemas: { body: rmeSimpanSchema }
   },
   authenticate,
-  requireProfiles(...KLINIS),
+  requireProfiles(...RME_AKSES),
   validate({ body: rmeSimpanSchema }),
   simpanRme
 );
@@ -238,11 +240,11 @@ defineRoute(
     method: 'post',
     path: '/klinis/rme/list',
     auth: true,
-    profiles: KLINIS,
+    profiles: RME_AKSES,
     schemas: { body: rmeListSchema }
   },
   authenticate,
-  requireProfiles(...KLINIS),
+  requireProfiles(...RME_AKSES),
   validate({ body: rmeListSchema }),
   listRme
 );

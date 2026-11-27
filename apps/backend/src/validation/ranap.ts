@@ -1,17 +1,17 @@
 import { z } from 'zod';
-import { dateSchema, dateTimeSchema } from './common';
+import { dateSchema, dateTimeSchema, uuidSchema } from './common';
 
 export const ranapListSchema = z.object({
   limit: z.coerce.number().int().min(1).max(300).optional()
 });
 
 export const admisiSchema = z.object({
-  bed_id: z.string().uuid(),
+  bed_id: uuidSchema,
   catatan: z.string().max(500).optional()
 });
 
 export const pindahSchema = z.object({
-  bed_id: z.string().uuid(),
+  bed_id: uuidSchema,
   alasan_pindah: z.string().max(255).optional()
 });
 
@@ -31,8 +31,8 @@ export const triaseSchema = z.object({
 });
 
 export const operasiSchema = z.object({
-  layanan_id: z.string().uuid(),
-  ruangan_id: z.string().uuid(),
+  layanan_id: uuidSchema,
+  ruangan_id: uuidSchema,
   jenis_anestesi: z.string().max(30),
   jadwal_mulai: dateTimeSchema
 });
@@ -45,7 +45,7 @@ export const operasiUpdateSchema = z.object({
 });
 
 export const ambulansSchema = z.object({
-  aset_id: z.string().uuid().optional(),
+  aset_id: uuidSchema.optional(),
   plat_nomor: z.string().min(1).max(20),
   jenis: z.string().max(30),
   tahun: z.number().int().min(1950).max(2100),
@@ -55,9 +55,9 @@ export const ambulansSchema = z.object({
 });
 
 export const perjalananSchema = z.object({
-  pasien_id: z.string().uuid(),
-  layanan_id: z.string().uuid(),
-  kunjungan_id: z.string().uuid().optional(),
+  pasien_id: uuidSchema,
+  layanan_id: uuidSchema,
+  kunjungan_id: uuidSchema.optional(),
   asal: z.string().max(255),
   tujuan: z.string().max(255),
   waktu_berangkat: dateTimeSchema.optional(),

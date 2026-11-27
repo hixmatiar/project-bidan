@@ -26,7 +26,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToHo
     email: '',
     password: '',
     no_hp: '',
-    jenis_kelamin: 'PEREMPUAN'
+    jenis_kelamin: 'P'
   });
 
   // Reset OTP State
@@ -357,16 +357,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess, onBackToHo
               </div>
             </div>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>Email Aktif (Untuk Notifikasi &amp; Reset OTP) *</label>
-              <input
-                type="email"
-                required
-                value={regForm.email}
-                onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
-                placeholder="pasien@gmail.com"
-                style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.9rem' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>Email Aktif (Notifikasi &amp; OTP) *</label>
+                <input
+                  type="email"
+                  required
+                  value={regForm.email}
+                  onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
+                  placeholder="pasien@gmail.com"
+                  style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.9rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, marginBottom: '0.35rem' }}>Jenis Kelamin *</label>
+                <select
+                  required
+                  value={regForm.jenis_kelamin}
+                  onChange={(e) => setRegForm({ ...regForm, jenis_kelamin: e.target.value })}
+                  style={{ width: '100%', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid var(--border-medium)', fontSize: '0.9rem', background: '#ffffff' }}
+                >
+                  <option value="P">Perempuan (P)</option>
+                  <option value="L">Laki-laki (L)</option>
+                </select>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>

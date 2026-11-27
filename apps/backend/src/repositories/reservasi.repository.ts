@@ -5,7 +5,8 @@ const JADWAL_COLUMNS = ['jam_mulai', 'jam_selesai', 'kuota_maks', 'durasi_per_pa
 export class ReservasiRepository {
   async list(limit: number, tanggal: string | null): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
-      `SELECT TOP (@limit) r.reservasi_id, r.pasien_id, p.nama AS nama_pasien, p.nik AS nik_pasien, r.jadwal_id,
+      `SELECT TOP (@limit) r.reservasi_id, r.pasien_id, p.no_rm, p.nama AS nama_pasien, RTRIM(p.nik) AS nik_pasien,
+              p.jenis_kelamin, p.tgl_lahir, p.alamat, p.no_telepon, r.jadwal_id,
               r.layanan_id, l.nama AS nama_layanan,
               r.nomor_antrean, CONVERT(VARCHAR(5), r.estimasi_jam, 108) AS estimasi_jam,
               CONVERT(VARCHAR(5), j.jam_mulai, 108) AS jam_mulai,

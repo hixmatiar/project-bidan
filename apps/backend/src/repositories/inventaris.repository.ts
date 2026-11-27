@@ -10,20 +10,93 @@ export interface ObatBaru {
   kekuatan?: string;
   golongan?: string;
   stokMinimum: number;
+  stokSaatIni?: number;
+}
+
+function normalizeKategoriDanGolongan(
+  rawKategori: string,
+  rawGolongan?: string
+): { kategori: string; golongan: string } {
+  const upperKat = (rawKategori || '').trim().toUpperCase().replace(/\s+/g, '_');
+  const cleanGol = (rawGolongan || '').trim().toUpperCase();
+
+  if (upperKat === 'ALKES' || upperKat === 'ALAT_KESEHATAN') {
+    return {
+      kategori: 'ALKES',
+      golongan: (cleanGol || 'ALKES').slice(0, 20)
+    };
+  }
+  if (upperKat === 'OBAT_BEBAS') {
+    return { kategori: 'OBAT', golongan: (cleanGol || 'BEBAS').slice(0, 20) };
+  }
+  if (upperKat === 'OBAT_BEBAS_TERBATAS') {
+    return { kategori: 'OBAT', golongan: (cleanGol || 'BEBAS_TERBATAS').slice(0, 20) };
+  }
+  if (upperKat === 'OBAT_KERAS') {
+    return { kategori: 'OBAT', golongan: (cleanGol || 'KERAS').slice(0, 20) };
+  }
+  if (upperKat === 'SUPLEMEN') {
+    return { kategori: 'OBAT', golongan: (cleanGol || 'SUPLEMEN').slice(0, 20) };
+  }
+  if (upperKat === 'VAKSIN') {
+    return { kategori: 'OBAT', golongan: (cleanGol || 'VAKSIN').slice(0, 20) };
+  }
+  if (upperKat === 'OBAT') {
+    return { kategori: 'OBAT', golongan: (cleanGol || 'BEBAS').slice(0, 20) };
+  }
+  return {
+    kategori: (rawKategori || 'OBAT').trim().slice(0, 20),
+    golongan: (cleanGol || 'BEBAS').slice(0, 20)
+  };
 }
 
 export class InventarisRepository {
+  static #stokColChecked = false;
+
+  async #ensureStokColumn(): Promise<void> {
+    if (InventarisRepository.#stokColChecked) return;
+    try {
+      await db.query(`
+        IF COL_LENGTH('dbo.Obat', 'stok_saat_ini') IS NULL
+        BEGIN
+          ALTER TABLE dbo.[Obat]
+            ADD [stok_saat_ini] INT NOT NULL
+            CONSTRAINT [DF_Obat_stok_saat_ini] DEFAULT (0);
+        END
+      `);
+      await db.query(`
+        UPDATE o
+           SET o.[stok_saat_ini] = ISNULL(agg.total_batch, 0)
+          FROM dbo.[Obat] o
+          OUTER APPLY (
+              SELECT CAST(ISNULL(SUM(sb.jumlah), 0) AS INT) AS total_batch
+                FROM dbo.[Batch_Obat] bo
+                JOIN dbo.[Stok_Batch] sb ON sb.batch_id = bo.batch_id
+               WHERE bo.obat_id = o.obat_id
+          ) agg
+         WHERE o.[stok_saat_ini] = 0
+           AND ISNULL(agg.total_batch, 0) > 0;
+      `);
+      InventarisRepository.#stokColChecked = true;
+    } catch {
+      // Abaikan pada mock unit test atau bila user DB read-only
+      InventarisRepository.#stokColChecked = true;
+    }
+  }
+
   async listObat(limit: number, term: string | null): Promise<Record<string, unknown>[]> {
+    await this.#ensureStokColumn();
     const result = await db.query<Record<string, unknown>>(
       `SELECT TOP (@limit) o.obat_id, o.kode, o.nama_generik, o.nama_dagang, o.kategori,
-              o.bentuk, o.satuan, o.stok_minimum, o.aktif,
-              ISNULL(SUM(sb.jumlah), 0) AS stok_total
+              o.golongan, o.kekuatan, o.bentuk, o.satuan, o.stok_minimum, o.aktif,
+              ISNULL(o.stok_saat_ini, ISNULL(SUM(sb.jumlah), 0)) AS stok_saat_ini,
+              ISNULL(o.stok_saat_ini, ISNULL(SUM(sb.jumlah), 0)) AS stok_total
          FROM [Obat] o
          LEFT JOIN [Batch_Obat] bo ON bo.obat_id = o.obat_id
          LEFT JOIN [Stok_Batch] sb ON sb.batch_id = bo.batch_id
-        WHERE @term IS NULL OR o.nama_generik LIKE @term OR o.kode LIKE @term
+        WHERE @term IS NULL OR o.nama_generik LIKE @term OR o.nama_dagang LIKE @term OR o.kode LIKE @term
         GROUP BY o.obat_id, o.kode, o.nama_generik, o.nama_dagang, o.kategori,
-                 o.bentuk, o.satuan, o.stok_minimum, o.aktif
+                 o.golongan, o.kekuatan, o.bentuk, o.satuan, o.stok_minimum, o.stok_saat_ini, o.aktif
         ORDER BY o.nama_generik ASC`,
       { limit, term }
     );
@@ -38,40 +111,65 @@ export class InventarisRepository {
     return result.recordset[0]?.obat_id ?? null;
   }
 
-  async countDuplikat(namaGenerik: string, kategori: string): Promise<number> {
+  async countDuplikatKode(kode: string): Promise<number> {
     const result = await db.query<{ jumlah: number }>(
-      `SELECT COUNT(*) AS jumlah FROM [Obat] WHERE nama_generik = @nama AND kategori = @kategori`,
-      { nama: namaGenerik, kategori }
+      `SELECT COUNT(*) AS jumlah FROM [Obat] WHERE kode = @kode`,
+      { kode: kode.trim() }
+    );
+    return result.recordset[0]?.jumlah ?? 0;
+  }
+
+  async countDuplikat(namaGenerik: string, kategori: string): Promise<number> {
+    const { kategori: normKat } = normalizeKategoriDanGolongan(kategori);
+    const result = await db.query<{ jumlah: number }>(
+      `SELECT COUNT(*) AS jumlah FROM [Obat] WHERE nama_generik = @nama AND kategori IN (@kategori, @normKat)`,
+      { nama: namaGenerik.trim(), kategori: kategori.trim(), normKat }
     );
     return result.recordset[0]?.jumlah ?? 0;
   }
 
   async createObat(input: ObatBaru): Promise<Record<string, unknown> | undefined> {
+    await this.#ensureStokColumn();
+    const mapped = normalizeKategoriDanGolongan(input.kategori, input.golongan);
+    const stokAwal = Math.max(0, Math.trunc(Number(input.stokSaatIni ?? 0)));
+
     const result = await db.query<Record<string, unknown>>(
       `INSERT INTO [Obat]
-         (kode, nama_generik, nama_dagang, kategori, bentuk, satuan, kekuatan, golongan, stok_minimum, aktif)
+         (kode, nama_generik, nama_dagang, kategori, bentuk, satuan, kekuatan, golongan, stok_minimum, stok_saat_ini, aktif)
        OUTPUT INSERTED.*
-       VALUES (@kode, @nama_generik, @nama_dagang, @kategori, @bentuk, @satuan, @kekuatan, @golongan, @stok_minimum, 1)`,
+       VALUES (@kode, @nama_generik, @nama_dagang, @kategori, @bentuk, @satuan, @kekuatan, @golongan, @stok_minimum, @stok_saat_ini, 1)`,
       {
-        kode: input.kode,
-        nama_generik: input.namaGenerik,
-        nama_dagang: input.namaDagang ?? input.namaGenerik,
-        kategori: input.kategori,
-        bentuk: input.bentuk,
-        satuan: input.satuan,
-        kekuatan: input.kekuatan ?? '-',
-        golongan: input.golongan ?? '-',
-        stok_minimum: input.stokMinimum
+        kode: input.kode.trim().slice(0, 30),
+        nama_generik: input.namaGenerik.trim().slice(0, 100),
+        nama_dagang: (input.namaDagang?.trim() || input.namaGenerik.trim()).slice(0, 100),
+        kategori: mapped.kategori,
+        bentuk: (input.bentuk.trim() || 'PCS').slice(0, 20),
+        satuan: (input.satuan.trim() || 'PCS').slice(0, 20),
+        kekuatan: (input.kekuatan?.trim() || '-').slice(0, 50),
+        golongan: mapped.golongan,
+        stok_minimum: input.stokMinimum,
+        stok_saat_ini: stokAwal
       }
     );
     return result.recordset[0];
+  }
+
+  async adjustStokSaatIni(obatId: string, delta: number): Promise<void> {
+    await this.#ensureStokColumn();
+    await db.query(
+      `UPDATE [Obat]
+          SET stok_saat_ini = CASE WHEN ISNULL(stok_saat_ini, 0) + @delta < 0 THEN 0 ELSE ISNULL(stok_saat_ini, 0) + @delta END
+        WHERE obat_id = @id`,
+      { id: obatId, delta: Math.trunc(delta) }
+    );
   }
 
   async updateObat(
     id: string,
     values: Record<string, unknown>
   ): Promise<Record<string, unknown> | undefined> {
-    const allowed = ['nama_dagang', 'stok_minimum', 'aktif'];
+    await this.#ensureStokColumn();
+    const allowed = ['nama_dagang', 'stok_minimum', 'stok_saat_ini', 'aktif'];
     const keys = Object.keys(values);
     for (const key of keys) {
       if (!allowed.includes(key)) {
@@ -135,16 +233,41 @@ export class InventarisRepository {
 
   async addStok(batchId: string, gudangId: string, jumlah: number): Promise<void> {
     await db.query(
-      `MERGE [Stok_Batch] AS target
-         USING (SELECT @batch_id AS batch_id, @gudang_id AS gudang_id) AS src
-         ON target.batch_id = src.batch_id AND target.gudang_id = src.gudang_id
-       WHEN MATCHED THEN UPDATE SET jumlah = target.jumlah + @jumlah
-       WHEN NOT MATCHED THEN INSERT (batch_id, gudang_id, jumlah) VALUES (src.batch_id, src.gudang_id, @jumlah);`,
+      `IF EXISTS (SELECT 1 FROM [Stok_Batch] WHERE batch_id = @batch_id AND gudang_id = @gudang_id)
+       BEGIN
+         UPDATE [Stok_Batch]
+            SET jumlah = jumlah + @jumlah
+          WHERE batch_id = @batch_id AND gudang_id = @gudang_id;
+       END
+       ELSE
+       BEGIN
+         INSERT INTO [Stok_Batch] (batch_id, gudang_id, jumlah)
+         VALUES (@batch_id, @gudang_id, @jumlah);
+       END`,
       { batch_id: batchId, gudang_id: gudangId, jumlah }
     );
   }
 
-  async reduceStok(batchId: string, gudangId: string, jumlah: number): Promise<void> {
+  async reduceStok(batchId: string, gudangId: string, jumlah: number, obatId?: string): Promise<void> {
+    if (obatId) {
+      await db.query(
+        `DECLARE @targetBatch UNIQUEIDENTIFIER = (
+           SELECT TOP 1 sb.batch_id
+             FROM [Stok_Batch] sb
+             JOIN [Batch_Obat] bo ON bo.batch_id = sb.batch_id
+            WHERE bo.obat_id = @obat_id AND sb.gudang_id = @gudang_id AND sb.jumlah > 0
+            ORDER BY bo.tgl_kedaluwarsa ASC
+         );
+         IF @targetBatch IS NOT NULL
+         BEGIN
+           UPDATE [Stok_Batch]
+              SET jumlah = CASE WHEN jumlah >= @jumlah THEN jumlah - @jumlah ELSE 0 END
+            WHERE batch_id = @targetBatch AND gudang_id = @gudang_id;
+         END`,
+        { obat_id: obatId, gudang_id: gudangId, jumlah }
+      );
+      return;
+    }
     await db.query(
       `UPDATE [Stok_Batch]
           SET jumlah = CASE WHEN jumlah >= @jumlah THEN jumlah - @jumlah ELSE 0 END
@@ -168,8 +291,12 @@ export class InventarisRepository {
     keterangan: string;
   }): Promise<void> {
     await db.query(
-      `INSERT INTO [Mutasi_Stok] (batch_id, gudang_id, staf_id, jenis, jumlah, waktu, keterangan)
-       VALUES (@batch_id, @gudang_id, @staf_id, 'MASUK', @jumlah, SYSDATETIME(), @keterangan)`,
+      `DECLARE @sid UNIQUEIDENTIFIER = COALESCE(@staf_id, (SELECT TOP 1 staf_id FROM [Staf] WHERE aktif = 1));
+       IF @sid IS NOT NULL
+       BEGIN
+         INSERT INTO [Mutasi_Stok] (batch_id, gudang_id, staf_id, jenis, jumlah, waktu, keterangan)
+         VALUES (@batch_id, @gudang_id, @sid, 'MASUK', @jumlah, SYSDATETIME(), @keterangan);
+       END`,
       {
         batch_id: input.batchId,
         gudang_id: input.gudangId,
@@ -188,8 +315,12 @@ export class InventarisRepository {
     keterangan: string;
   }): Promise<void> {
     await db.query(
-      `INSERT INTO [Mutasi_Stok] (batch_id, gudang_id, staf_id, jenis, jumlah, waktu, keterangan)
-       VALUES (@batch_id, @gudang_id, @staf_id, 'KELUAR', @jumlah, SYSDATETIME(), @keterangan)`,
+      `DECLARE @sid UNIQUEIDENTIFIER = COALESCE(@staf_id, (SELECT TOP 1 staf_id FROM [Staf] WHERE aktif = 1));
+       IF @sid IS NOT NULL
+       BEGIN
+         INSERT INTO [Mutasi_Stok] (batch_id, gudang_id, staf_id, jenis, jumlah, waktu, keterangan)
+         VALUES (@batch_id, @gudang_id, @sid, 'KELUAR', @jumlah, SYSDATETIME(), @keterangan);
+       END`,
       {
         batch_id: input.batchId,
         gudang_id: input.gudangId,

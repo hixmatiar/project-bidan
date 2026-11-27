@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateSchema } from './common';
+import { dateSchema, uuidSchema } from './common';
 
 export const asuhanSchema = z.object({
   imd: z.boolean().default(false),
@@ -11,7 +11,7 @@ export const asuhanSchema = z.object({
 });
 
 export const pemeriksaanSchema = z.object({
-  kunjungan_id: z.string().uuid().optional(),
+  kunjungan_id: uuidSchema.optional(),
   jenis: z.enum(['KN1', 'KN2', 'KN3', 'TUMBUH_KEMBANG']),
   tgl_pemeriksaan: dateSchema,
   berat_gram: z.number().int().min(200).max(40000),

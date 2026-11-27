@@ -26,8 +26,8 @@ export interface AlergiInput {
 export class PasienRepository {
   async searchIdentitas(limit: number, term: string | null): Promise<Record<string, unknown>[]> {
     const result = await db.query<Record<string, unknown>>(
-      `SELECT TOP (@limit) pasien_id, no_rm, nik, nama, jenis_kelamin, tgl_lahir,
-              no_telepon, alamat, email
+      `SELECT TOP (@limit) pasien_id, no_rm, RTRIM(nik) AS nik, nama, jenis_kelamin, tgl_lahir,
+              tempat_lahir, no_telepon, alamat, email
          FROM [Pasien]
         WHERE @term IS NULL OR nama LIKE @term OR nik LIKE @term OR no_rm LIKE @term
         ORDER BY nama ASC`,
@@ -45,6 +45,8 @@ export class PasienRepository {
   }
 
   async createPasien(body: WalkInInput): Promise<string | null> {
+    const rawJk = (body.jenis_kelamin || '').trim().toUpperCase();
+    const jk = rawJk === 'L' || rawJk.startsWith('LAKI') ? 'L' : 'P';
     const result = await db.query<{ pasien_id: string }>(
       `INSERT INTO [Pasien]
          (no_rm, nik, nama, jenis_kelamin, tgl_lahir, tempat_lahir, alamat, no_telepon,
@@ -54,13 +56,13 @@ export class PasienRepository {
                @nik, @nama, @jenis_kelamin, @tgl_lahir, @tempat_lahir, @alamat, @no_telepon,
                @gol_darah, @status_pernikahan, @pekerjaan, @email)`,
       {
-        nik: body.nik,
-        nama: body.nama,
-        jenis_kelamin: body.jenis_kelamin,
+        nik: body.nik.trim(),
+        nama: body.nama.trim(),
+        jenis_kelamin: jk,
         tgl_lahir: body.tgl_lahir,
         tempat_lahir: body.tempat_lahir,
         alamat: body.alamat,
-        no_telepon: body.no_telepon,
+        no_telepon: body.no_telepon.trim().slice(0, 16),
         gol_darah: body.gol_darah,
         status_pernikahan: body.status_pernikahan,
         pekerjaan: body.pekerjaan,
@@ -68,6 +70,19 @@ export class PasienRepository {
       }
     );
     return result.recordset[0]?.pasien_id ?? null;
+  }
+
+  async syncPasienIdentitas(pasienId: string, body: WalkInInput): Promise<void> {
+    const rawJk = (body.jenis_kelamin || '').trim().toUpperCase();
+    if (!rawJk) return;
+    const jk = rawJk === 'L' || rawJk.startsWith('LAKI') ? 'L' : 'P';
+    await db.query(
+      `UPDATE [Pasien]
+          SET jenis_kelamin = @jk,
+              email = COALESCE(@email, email)
+        WHERE pasien_id = @id`,
+      { id: pasienId, jk, email: body.email ?? null }
+    );
   }
 
   async findDokterAktif(): Promise<string | null> {
